@@ -1,0 +1,113 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "research-copilot"
+version = "0.1.0"
+description = "Multi-Agent Research Assistant with Advanced RAG Capabilities"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Research Copilot Team"}
+]
+keywords = ["research", "rag", "ai", "agents", "langgraph", "mcp"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "langchain>=0.1.0",
+    "langchain-openai>=0.0.5",
+    "langgraph>=0.0.20",
+    "qdrant-client>=1.7.0",
+    "gradio>=4.0.0",
+    "arxiv>=2.0.0",
+    "youtube-transcript-api>=0.6.0",
+    "PyGithub>=2.0.0",
+    "beautifulsoup4>=4.12.0",
+    "requests>=2.31.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "rank-bm25>=0.2.2",
+    "sentence-transformers>=2.2.0",
+    "pypdf>=3.0.0",
+    "markdown>=3.5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+]
+
+test = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+]
+
+[project.scripts]
+research-copilot = "research_copilot.app.main:main"
+
+[project.urls]
+Homepage = "https://github.com/yourusername/research-copilot"
+Documentation = "https://github.com/yourusername/research-copilot/docs"
+Repository = "https://github.com/yourusername/research-copilot"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["research_copilot*"]
+exclude = ["tests*", "scripts*", "docs*", "data*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --cov=research_copilot --cov-report=html --cov-report=term"
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | __pycache__
+  | data
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]  # Line too long (handled by black)
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "data",
+]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false  # Enable gradually
+ignore_missing_imports = true

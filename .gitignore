@@ -1,0 +1,38 @@
+# Python
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
+*.pywz
+
+# Environment
+.env
+.env.local
+.env.production
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
+
+# Runtime data directories
+data/
+qdrant_db/
+parent_store/
+markdown_docs/
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/

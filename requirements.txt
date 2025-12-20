@@ -1,0 +1,42 @@
+# Testing dependencies
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.11.0
+pytest-cov>=4.1.0
+
+# For mocking HTTP requests
+responses>=0.23.0
+
+# For async testing
+aiohttp>=3.9.0
+
+# Core dependencies required by tools (needed for tests)
+langchain-core>=0.1.0
+langchain-community>=0.0.20
+langgraph>=0.2.0  # Required for agent subgraphs
+langchain_huggingface>=0.1.0
+langchain_qdrant>=0.1.0
+qdrant-client>=1.7.0  # Qdrant vector database client
+fastembed>=0.2.0  # Required for sparse embeddings (FastEmbedSparse)
+langchain_ollama>=0.1.0
+langchain_google_genai>=1.0.0
+pydantic>=2.0.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+sentence-transformers
+
+# Tool-specific dependencies
+arxiv>=2.1.0
+youtube-transcript-api>=0.6.0
+google-api-python-client>=2.100.0  # For YouTube API (optional)
+pymupdf>=1.23.0  # For ArXiv PDF parsing (optional but recommended)
+langchain-tavily>=0.1.0  # Tavily web search (replaces deprecated TavilySearchResults)
+pymupdf4llm>=0.0.5  # For advanced PDF parsing features
+
+# MCP dependencies
+mcp>=0.1.0  # Uncomment if testing MCP features
+gradio>=4.0.0
+
+# GCP dependencies (for production deployment)
+google-cloud-secret-manager>=2.16.0  # For Secret Manager integration (optional, only needed for GCP)
+python-dotenv>=1.0.0  # For .env file support (optional, for local development)
