@@ -167,24 +167,54 @@ gsutil iam ch serviceAccount:${SA_EMAIL}:roles/storage.objectAdmin \
   gs://${PROJECT_ID}-research-copilot-data || echo "Permissions already set"
 ```
 
-## Step 7: Build Docker Image Using Cloud Build
+## Step 7: Get Hugging Face Token (Recommended)
+
+To avoid rate limiting when downloading the embedding model, get a Hugging Face token:
+
+```bash
+# 1. Go to https://huggingface.co/settings/tokens
+# 2. Create a new token (read access is sufficient)
+# 3. Copy the token (starts with "hf_")
+
+# Set it as an environment variable
+export HF_TOKEN="hf_your_token_here"
+```
+
+**Note**: The token is optional but highly recommended. Without it, model downloads may hit rate limits (429 errors). The code includes retry logic, but authenticated downloads are much more reliable.
+
+## Step 8: Build Docker Image Using Cloud Build
 
 ```bash
 # Build and push image using Cloud Build (no local Docker needed!)
-gcloud builds submit \
-  --config=cloudbuild.yaml \
-  --project=${PROJECT_ID} \
-  --substitutions=_REGION=${REGION},_REPO_NAME=${REPO_NAME},_SERVICE_NAME=${SERVICE_NAME} \
-  .
+# Include HF_TOKEN if you have one (recommended)
+if [ -n "$HF_TOKEN" ]; then
+  gcloud builds submit \
+    --config=cloudbuild.yaml \
+    --project=${PROJECT_ID} \
+    --substitutions=_REGION=${REGION},_REPO_NAME=${REPO_NAME},_SERVICE_NAME=${SERVICE_NAME},_HF_TOKEN=${HF_TOKEN} \
+    .
+else
+  echo "⚠ Warning: Building without HF_TOKEN - model downloads may hit rate limits"
+  gcloud builds submit \
+    --config=cloudbuild.yaml \
+    --project=${PROJECT_ID} \
+    --substitutions=_REGION=${REGION},_REPO_NAME=${REPO_NAME},_SERVICE_NAME=${SERVICE_NAME} \
+    .
+fi
 
 # This will:
 # 1. Upload your code to Cloud Build
 # 2. Build the Docker image on Google's infrastructure
-# 3. Push the image to Artifact Registry
-# 4. Take about 10-15 minutes (includes model downloads)
+# 3. Pre-download the embedding model (if HF_TOKEN provided)
+# 4. Push the image to Artifact Registry (tags: BUILD_ID and latest)
+# 5. Take about 10-15 minutes (includes model downloads)
+
+# Note: If you have a previous image, don't worry! Cloud Run will use the "latest" tag,
+# so your new build will automatically replace it. Old images remain in Artifact Registry
+# but won't be used unless you explicitly reference them.
 ```
 
-## Step 8: Deploy to Cloud Run
+## Step 9: Deploy to Cloud Run
 
 ```bash
 # Set image name
@@ -221,7 +251,7 @@ gcloud run deploy ${SERVICE_NAME} \
   4. Search for your integration name and add it
   5. Make sure the integration has "Can edit" or "Full access" permissions
 
-## Step 9: Verify Deployment
+## Step 10: Verify Deployment
 
 ```bash
 # Get the service URL
@@ -318,15 +348,30 @@ gsutil mb -p ${PROJECT_ID} -c STANDARD -l ${REGION} \
 gsutil iam ch serviceAccount:${SA_EMAIL}:roles/storage.objectAdmin \
   gs://${PROJECT_ID}-research-copilot-data 2>/dev/null || true
 
-# Step 7: Build image
-echo "🔨 Building Docker image (this takes 10-15 minutes)..."
-gcloud builds submit \
-  --config=cloudbuild.yaml \
-  --project=${PROJECT_ID} \
-  --substitutions=_REGION=${REGION},_REPO_NAME=${REPO_NAME},_SERVICE_NAME=${SERVICE_NAME} \
-  .
+# Step 7: Get Hugging Face Token (optional but recommended)
+echo "🔑 Setting up Hugging Face token..."
+export HF_TOKEN="${HF_TOKEN:-}"  # Set this if you have a token from https://huggingface.co/settings/tokens
+if [ -z "$HF_TOKEN" ]; then
+  echo "⚠ Warning: HF_TOKEN not set - model downloads may hit rate limits"
+fi
 
-# Step 8: Deploy to Cloud Run
+# Step 8: Build image
+echo "🔨 Building Docker image (this takes 10-15 minutes)..."
+if [ -n "$HF_TOKEN" ]; then
+  gcloud builds submit \
+    --config=cloudbuild.yaml \
+    --project=${PROJECT_ID} \
+    --substitutions=_REGION=${REGION},_REPO_NAME=${REPO_NAME},_SERVICE_NAME=${SERVICE_NAME},_HF_TOKEN=${HF_TOKEN} \
+    .
+else
+  gcloud builds submit \
+    --config=cloudbuild.yaml \
+    --project=${PROJECT_ID} \
+    --substitutions=_REGION=${REGION},_REPO_NAME=${REPO_NAME},_SERVICE_NAME=${SERVICE_NAME} \
+    .
+fi
+
+# Step 9: Deploy to Cloud Run
 echo "🚀 Deploying to Cloud Run..."
 export IMAGE_NAME="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${SERVICE_NAME}:latest"
 
@@ -359,20 +404,26 @@ gcloud run services describe ${SERVICE_NAME} \
 
 1. **MCP is Disabled**: The deployment sets `USE_GITHUB_MCP=false`, `USE_WEB_SEARCH_MCP=false`, and `USE_NOTION_MCP=false` because MCP servers require local processes that don't work well in Cloud Run. The application will use direct API calls instead.
 
-2. **Secrets**: Make sure to replace `YOUR_GOOGLE_API_KEY_HERE`, `YOUR_TAVILY_API_KEY_HERE`, etc. with your actual API keys in Step 5.
+2. **Hugging Face Token (Recommended)**: 
+   - Get a free token from https://huggingface.co/settings/tokens (read access is sufficient)
+   - Set `HF_TOKEN` environment variable before building (Step 7)
+   - This prevents rate limiting (429 errors) when downloading the embedding model
+   - Without it, the code includes retry logic, but authenticated downloads are more reliable
 
-3. **Notion Integration**: 
+3. **Secrets**: Make sure to replace `YOUR_GOOGLE_API_KEY_HERE`, `YOUR_TAVILY_API_KEY_HERE`, etc. with your actual API keys in Step 5.
+
+4. **Notion Integration**: 
    - Requires `NOTION_API_KEY` secret (created in Step 5)
-   - Requires `NOTION_PARENT_PAGE_ID` environment variable (set in Step 8)
-   - Make sure your Notion integration has access to the parent page (see Step 8 instructions)
+   - Requires `NOTION_PARENT_PAGE_ID` environment variable (set in Step 9)
+   - Make sure your Notion integration has access to the parent page (see Step 9 instructions)
 
-4. **Previous Images**: If you've built images before, **you don't need to delete them**. Cloud Run uses the `latest` tag, so your new build automatically becomes the active version. Old images remain in Artifact Registry but won't be used unless you explicitly reference a specific tag. You can optionally clean them up later to save storage costs.
+5. **Previous Images**: If you've built images before, **you don't need to delete them**. Cloud Run uses the `latest` tag, so your new build automatically becomes the active version. Old images remain in Artifact Registry but won't be used unless you explicitly reference a specific tag. You can optionally clean them up later to save storage costs.
 
-5. **First Build**: The first build takes 10-15 minutes because it downloads embedding models. Subsequent builds are faster.
+6. **First Build**: The first build takes 10-15 minutes because it downloads embedding models. Subsequent builds are faster.
 
-6. **Costs**: Expect ~$5-15/month for moderate usage (see README.md for details).
+7. **Costs**: Expect ~$5-15/month for moderate usage (see README.md for details).
 
-7. **Storage**: Data persists in Cloud Storage, so your Qdrant database and documents survive container restarts.
+8. **Storage**: Data persists in Cloud Storage, so your Qdrant database and documents survive container restarts.
 
 ## Troubleshooting
 
@@ -401,16 +452,31 @@ gcloud secrets get-iam-policy GOOGLE_API_KEY --project=${PROJECT_ID}
 ## Updating After Code Changes
 
 ```bash
-# Just rebuild and redeploy
-gcloud builds submit \
-  --config=cloudbuild.yaml \
-  --project=${PROJECT_ID} \
-  --substitutions=_REGION=${REGION},_REPO_NAME=${REPO_NAME},_SERVICE_NAME=${SERVICE_NAME} \
-  .
+# Set HF_TOKEN if you have one (recommended)
+export HF_TOKEN="${HF_TOKEN:-}"  # Set this if you have a token
+
+# Rebuild with HF_TOKEN if available
+if [ -n "$HF_TOKEN" ]; then
+  gcloud builds submit \
+    --config=cloudbuild.yaml \
+    --project=${PROJECT_ID} \
+    --substitutions=_REGION=${REGION},_REPO_NAME=${REPO_NAME},_SERVICE_NAME=${SERVICE_NAME},_HF_TOKEN=${HF_TOKEN} \
+    .
+else
+  gcloud builds submit \
+    --config=cloudbuild.yaml \
+    --project=${PROJECT_ID} \
+    --substitutions=_REGION=${REGION},_REPO_NAME=${REPO_NAME},_SERVICE_NAME=${SERVICE_NAME} \
+    .
+fi
+
+# Redeploy (include all environment variables)
+export NOTION_PARENT_PAGE_ID="${NOTION_PARENT_PAGE_ID:-}"  # Set if using Notion
 
 gcloud run deploy ${SERVICE_NAME} \
   --image ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${SERVICE_NAME}:latest \
   --region ${REGION} \
+  --set-env-vars="GCS_BUCKET_NAME=${PROJECT_ID}-research-copilot-data,QDRANT_DB_PATH=/tmp/qdrant_db,PARENT_STORE_PATH=/tmp/parent_store,MARKDOWN_DIR=/tmp/markdown_docs,GRADIO_SERVER_NAME=0.0.0.0,GRADIO_SERVER_PORT=7860,LLM_PROVIDER=google,LLM_MODEL=gemini-2.5-flash,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},USE_GITHUB_MCP=false,USE_WEB_SEARCH_MCP=false,USE_NOTION_MCP=false,NOTION_PARENT_PAGE_ID=${NOTION_PARENT_PAGE_ID}" \
   --project=${PROJECT_ID}
 ```
 

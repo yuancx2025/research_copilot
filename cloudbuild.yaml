@@ -8,6 +8,8 @@ steps:
       - 'build'
       - '-f'
       - 'deployment/Dockerfile.gcp'
+      - '--build-arg'
+      - 'HF_TOKEN=${_HF_TOKEN}'
       - '-t'
       - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${BUILD_ID}'
       - '-t'
@@ -30,6 +32,7 @@ substitutions:
   _REGION: 'us-central1'
   _REPO_NAME: 'research-copilot'
   _SERVICE_NAME: 'research-copilot'
+  _HF_TOKEN: ''  # Hugging Face token for authenticated downloads (set via --substitutions)
 
 # Build options
 options:

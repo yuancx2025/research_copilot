@@ -22,8 +22,20 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir --upgrade -r requirements.txt
 
-# Pre-download sentence-transformers model to avoid runtime rate limiting
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-mpnet-base-v2')"
+# Pre-download sentence-transformers model with Hugging Face token to avoid rate limiting
+# HF_TOKEN is passed as build arg from Cloud Build
+ARG HF_TOKEN
+RUN if [ -n "$HF_TOKEN" ]; then \
+        export HF_TOKEN=$HF_TOKEN && \
+        echo "Pre-downloading model with HF token..." && \
+        python -c "import os; os.environ['HF_TOKEN'] = '$HF_TOKEN'; from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-mpnet-base-v2')" && \
+        echo "✓ Model pre-downloaded successfully"; \
+    else \
+        echo "⚠ Warning: HF_TOKEN not provided, model will download at runtime (may hit rate limits)"; \
+    fi
+
+# Set Hugging Face cache location (persists across container restarts if using persistent volume)
+ENV HF_HOME=/tmp/.cache/huggingface
 
 # Copy application code and set ownership
 COPY . .
