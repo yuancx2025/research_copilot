@@ -28,6 +28,7 @@ sentence-transformers
 # Tool-specific dependencies
 arxiv>=2.1.0
 youtube-transcript-api>=0.6.0
+yt-dlp>=2023.0.0  # For YouTube video info and metadata
 google-api-python-client>=2.100.0  # For YouTube API (optional)
 pymupdf>=1.23.0  # For ArXiv PDF parsing (optional but recommended)
 langchain-tavily>=0.1.0  # Tavily web search (replaces deprecated TavilySearchResults)
@@ -35,8 +36,10 @@ pymupdf4llm>=0.0.5  # For advanced PDF parsing features
 
 # MCP dependencies
 mcp>=0.1.0  # Uncomment if testing MCP features
+langchain-mcp-adapters>=0.2.0  # Official LangChain MCP adapters
 gradio>=4.0.0
 
 # GCP dependencies (for production deployment)
 google-cloud-secret-manager>=2.16.0  # For Secret Manager integration (optional, only needed for GCP)
+google-cloud-storage>=2.10.0  # For Cloud Storage integration (optional, only needed for GCP)
 python-dotenv>=1.0.0  # For .env file support (optional, for local development)

@@ -10,6 +10,7 @@ An AI-powered research assistant that helps you explore, analyze, and synthesize
 - **Web Search**: Intelligent web search with Tavily integration
 - **GitHub Integration**: Explore code repositories and documentation
 - **YouTube Analysis**: Extract insights from video transcripts
+- **Notion Export**: Generate structured study plans and export them directly to Notion
 
 ### Intelligent Agent System
 - **Orchestrated Multi-Agent Architecture**: Uses LangGraph to coordinate specialized agents
@@ -59,18 +60,76 @@ An AI-powered research assistant that helps you explore, analyze, and synthesize
 
 ### Configuration
 
-Create a `config.py` file in the root directory or set environment variables for your API keys:
+Create a `.env` file in the root directory or set environment variables for your API keys:
 
-```python
+```bash
 # Google Gemini (recommended for main LLM)
-GOOGLE_API_KEY = "your-google-gemini-api-key"
+GOOGLE_API_KEY=your-google-gemini-api-key
 
 # Tavily (for web search)
-TAVILY_API_KEY = "your-tavily-api-key"
+TAVILY_API_KEY=your-tavily-api-key
 
 # GitHub (for GitHub agent)
-GITHUB_TOKEN = "your-github-token"
+GITHUB_TOKEN=your-github-token
+
+# Notion Integration (for study plan export)
+NOTION_API_KEY=your-notion-integration-token
+NOTION_PARENT_PAGE_ID=your-parent-page-uuid
 ```
+
+#### Notion API Setup
+
+Research Copilot uses **direct Notion API calls** to create study plan pages. To set up Notion integration:
+
+1. **Create a Notion Integration**:
+   - Go to [Notion Developers](https://developers.notion.com/)
+   - Click "New integration"
+   - Give it a name (e.g., "Research Copilot")
+   - Select the workspace where you want to create pages
+   - Copy the "Internal Integration Token" → this is your `NOTION_API_KEY`
+
+2. **Get Your Parent Page ID**:
+   - Open the Notion page where you want study plans to be created
+   - Click "Share" → "Copy link"
+   - The URL format is: `https://www.notion.so/PageName-<UUID>`
+   - Extract the UUID (32 hex characters after the last dash) → this is your `NOTION_PARENT_PAGE_ID`
+
+3. **Share the Page with Your Integration**:
+   - Open your parent page in Notion
+   - Click "..." (menu) → "Add connections"
+   - Search for and select your integration
+   - This grants the integration permission to create child pages
+
+#### MCP Server Configuration (Optional)
+
+Research Copilot supports **local MCP servers** via stdio (standard input/output) protocol for enhanced tool capabilities. This is the recommended approach as it provides better reliability and lower latency compared to remote servers.
+
+```bash
+# Enable MCP servers (optional - defaults to direct API calls)
+USE_GITHUB_MCP=true
+USE_WEB_SEARCH_MCP=false
+USE_NOTION_MCP=false
+
+# Local MCP server commands (stdio transport)
+# GitHub MCP: Uses npx to spawn the official MCP server
+GITHUB_MCP_COMMAND=npx,-y,@modelcontextprotocol/server-github
+
+# Web Search MCP (if using MCP instead of direct Tavily API)
+WEB_SEARCH_MCP_COMMAND=python,-m,research_copilot.tools.mcp.web_search_mcp
+
+# Notion MCP (if using MCP instead of direct API)
+NOTION_MCP_COMMAND=npx,-y,@modelcontextprotocol/server-notion
+```
+
+**How Local MCP Works**:
+- MCP servers are spawned as child processes
+- Communication happens via stdin/stdout (stdio transport)
+- No network overhead - everything runs locally
+- The adapter (`research_copilot/tools/mcp/adapter.py`) handles connection lifecycle
+
+**When to Use MCP vs Direct API**:
+- **Direct API** (default): Simpler setup, fewer dependencies, recommended for most users
+- **MCP Server**: Use when you need advanced features from official MCP servers or want to integrate with the broader MCP ecosystem
 
 ### Launch the Application
 

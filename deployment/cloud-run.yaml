@@ -1,0 +1,88 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: research-copilot
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/execution-environment: gen2
+spec:
+  template:
+    metadata:
+      annotations:
+        # Autoscaling configuration
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "10"
+        # CPU allocation
+        run.googleapis.com/cpu-throttling: "false"
+        # Timeout for long-running requests
+        run.googleapis.com/timeout: "3600s"
+    spec:
+      # Container configuration
+      containerConcurrency: 10
+      timeoutSeconds: 3600
+      serviceAccountName: research-copilot@PROJECT_ID.iam.gserviceaccount.com
+      containers:
+      - image: gcr.io/PROJECT_ID/research-copilot:latest
+        ports:
+        - name: http1
+          containerPort: 7860
+        env:
+        # Cloud Storage configuration
+        - name: GCS_BUCKET_NAME
+          value: "PROJECT_ID-research-copilot-data"
+        # Data paths (using /tmp for Cloud Run ephemeral storage)
+        - name: QDRANT_DB_PATH
+          value: "/tmp/qdrant_db"
+        - name: PARENT_STORE_PATH
+          value: "/tmp/parent_store"
+        - name: MARKDOWN_DIR
+          value: "/tmp/markdown_docs"
+        # Gradio configuration
+        - name: GRADIO_SERVER_NAME
+          value: "0.0.0.0"
+        - name: GRADIO_SERVER_PORT
+          value: "7860"
+        # LLM Configuration
+        - name: LLM_PROVIDER
+          value: "google"
+        - name: LLM_MODEL
+          value: "gemini-2.5-flash"
+        # MCP Configuration (disabled for Cloud Run - use direct APIs instead)
+        - name: USE_GITHUB_MCP
+          value: "false"
+        - name: USE_WEB_SEARCH_MCP
+          value: "false"
+        - name: USE_NOTION_MCP
+          value: "false"
+        # Notion Configuration (Direct API mode)
+        - name: NOTION_PARENT_PAGE_ID
+          value: "YOUR_NOTION_PARENT_PAGE_ID"  # Replace with your actual Notion page ID
+        # Resource limits
+        resources:
+          limits:
+            cpu: "2"
+            memory: 4Gi
+          requests:
+            cpu: "1"
+            memory: 2Gi
+        # Health check
+        startupProbe:
+          httpGet:
+            path: /
+            port: 7860
+          initialDelaySeconds: 10
+          timeoutSeconds: 5
+          periodSeconds: 10
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 7860
+          initialDelaySeconds: 30
+          timeoutSeconds: 5
+          periodSeconds: 30
+          failureThreshold: 3
+  traffic:
+  - percent: 100
+    latestRevision: true
+
