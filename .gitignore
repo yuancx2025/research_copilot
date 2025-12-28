@@ -20,6 +20,7 @@ __pycache__/
 .vscode/
 .idea/
 .DS_Store
+.cursor
 
 # Runtime data directories
 data/
