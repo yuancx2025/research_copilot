@@ -31,6 +31,11 @@ class State(MessagesState):
     # Phase 4: Research cache support
     cache_enabled: bool = False  # Whether cache is enabled for this session
     cached_results: Dict[str, dict] = {}  # Cached agent results (agent_type -> result)
+    
+    # Phase 5: Notion agent support
+    create_study_plan: bool = False  # Flag to trigger study plan creation
+    notion_page_url: str = ""  # URL of created Notion page
+    study_plan_data: Dict[str, Any] = {}  # Generated study plan structure
 
 class AgentState(MessagesState):
     """State for individual agent subgraph"""

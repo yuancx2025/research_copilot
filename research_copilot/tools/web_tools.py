@@ -62,32 +62,31 @@ class WebToolkit(BaseToolkit):
                     )
     
     def is_available(self) -> bool:
-        """Web tools available if Tavily API key or MCP is configured."""
-        return bool(self.tavily_api_key or self.use_mcp)
+        """Web tools available if Tavily API key or MCP command is configured."""
+        mcp_configured = self.use_mcp and getattr(self.config, 'WEB_SEARCH_MCP_COMMAND', None)
+        return bool(self.tavily_api_key or mcp_configured)
     
     async def _init_mcp(self):
-        """Initialize remote MCP adapter for web search if configured."""
+        """Initialize local MCP adapter via stdio for web search if configured."""
         if self.use_mcp and not self._mcp_adapter:
             from .mcp.adapter import MCPToolAdapter
             
-            server_url = getattr(self.config, 'WEB_SEARCH_MCP_SERVER_URL', None)
-            if not server_url:
-                logger.error("WEB_SEARCH_MCP_SERVER_URL not configured for remote MCP")
+            command = getattr(self.config, 'WEB_SEARCH_MCP_COMMAND', None)
+            if not command:
+                logger.error("WEB_SEARCH_MCP_COMMAND not configured for local MCP")
                 return
             
-            headers = {}
-            auth_token = getattr(self.config, 'MCP_SERVER_AUTH_TOKEN', None)
-            if auth_token:
-                headers["Authorization"] = f"Bearer {auth_token}"
+            args = getattr(self.config, 'WEB_SEARCH_MCP_ARGS', [])
             
-            # Pass Tavily API key if available (for server-side use)
+            # Prepare environment variables for the MCP server process
+            env = {}
             if self.tavily_api_key:
-                headers["X-Tavily-API-Key"] = self.tavily_api_key
+                env["TAVILY_API_KEY"] = self.tavily_api_key
             
             server_config = {
-                "url": server_url,
-                "headers": headers,
-                "timeout": getattr(self.config, 'MCP_CONNECTION_TIMEOUT', 30)
+                "command": command,
+                "args": args,
+                "env": env
             }
             
             self._mcp_adapter = MCPToolAdapter(
@@ -130,8 +129,8 @@ class WebToolkit(BaseToolkit):
         """
         if not self._tavily:
             return [{
-                "error": "Web search API not configured. Set TAVILY_API_KEY or USE_WEB_SEARCH_MCP=True",
-                "message": "Configure Tavily API key or enable web search MCP"
+                "error": "Web search API not configured. Set TAVILY_API_KEY or configure WEB_SEARCH_MCP_COMMAND",
+                "message": "Configure Tavily API key or set WEB_SEARCH_MCP_COMMAND for local MCP server"
             }]
         
         try:

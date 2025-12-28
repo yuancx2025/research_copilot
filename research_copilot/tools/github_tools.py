@@ -35,24 +35,26 @@ class GitHubToolkit(BaseToolkit):
         return True
     
     async def _init_mcp(self):
-        """Initialize remote MCP adapter if configured."""
+        """Initialize local MCP adapter via stdio if configured."""
         if self.use_mcp and not self._mcp_adapter:
             from .mcp.adapter import MCPToolAdapter
             
-            server_url = getattr(self.config, 'GITHUB_MCP_SERVER_URL', None)
-            if not server_url:
-                logger.error("GITHUB_MCP_SERVER_URL not configured for remote MCP")
+            command = getattr(self.config, 'GITHUB_MCP_COMMAND', None)
+            if not command:
+                logger.error("GITHUB_MCP_COMMAND not configured for local MCP")
                 return
             
-            headers = {}
-            auth_token = getattr(self.config, 'MCP_SERVER_AUTH_TOKEN', None)
-            if auth_token:
-                headers["Authorization"] = f"Bearer {auth_token}"
+            args = getattr(self.config, 'GITHUB_MCP_ARGS', [])
+            
+            # Prepare environment variables for the MCP server process
+            env = {}
+            if self.token:
+                env["GITHUB_TOKEN"] = self.token
             
             server_config = {
-                "url": server_url,
-                "headers": headers,
-                "timeout": getattr(self.config, 'MCP_CONNECTION_TIMEOUT', 30)
+                "command": command,
+                "args": args,
+                "env": env
             }
             
             self._mcp_adapter = MCPToolAdapter(

@@ -19,6 +19,9 @@ def route_to_agents(state: State) -> List[Send]:
     Creates Send objects for parallel agent execution.
     Returns list of Send objects, one per agent to invoke.
     
+    If create_study_plan flag is set, skip research agents and go directly to aggregate
+    (Notion agent will be invoked after aggregation).
+    
     Error handling:
     - Empty research_intent: defaults to ["local", "web"]
     - Invalid agent names: filtered out with warning
@@ -30,6 +33,10 @@ def route_to_agents(state: State) -> List[Send]:
     Returns:
         List of Send objects targeting agent nodes for parallel execution
     """
+    # If creating study plan, skip research agents (data already collected)
+    if state.get("create_study_plan", False):
+        return []  # Empty list means no agents to route to, will go to aggregate
+    
     research_intent = state.get("research_intent", [])
     
     # Error handling: empty research_intent

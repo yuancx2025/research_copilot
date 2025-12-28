@@ -4,6 +4,26 @@ from research_copilot.core.document_manager import DocumentManager
 from research_copilot.core.rag_system import RAGSystem
 from research_copilot.ui.research_formatter import format_citations_markdown, format_agent_results_summary
 from research_copilot.ui.css import custom_css
+from research_copilot.config import settings as config
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def is_notion_configured():
+    """Check if Notion is configured (either via MCP or Direct API)."""
+    # MCP mode: USE_NOTION_MCP=True and NOTION_MCP_COMMAND set
+    mcp_configured = (
+        getattr(config, 'USE_NOTION_MCP', False) and 
+        getattr(config, 'NOTION_MCP_COMMAND', None)
+    )
+    # Direct API mode: NOTION_API_KEY and NOTION_PARENT_PAGE_ID set
+    direct_api_configured = (
+        getattr(config, 'NOTION_API_KEY', None) and 
+        getattr(config, 'NOTION_PARENT_PAGE_ID', None)
+    )
+    return mcp_configured or direct_api_configured
+
 
 def create_gradio_ui():
     rag_system = RAGSystem()
@@ -11,6 +31,10 @@ def create_gradio_ui():
     
     doc_manager = DocumentManager(rag_system)
     chat_interface = ChatInterface(rag_system)
+    
+    # Store last research data for study plan creation
+    last_research_data = {}
+    last_query = ""
     
     def format_file_list():
         files = doc_manager.get_markdown_files()
@@ -43,7 +67,14 @@ def create_gradio_ui():
     
     def research_chat_handler(msg, hist):
         """Handler for Research tab that returns both answer and artifacts."""
+        nonlocal last_research_data, last_query
+        
         answer, research_data = chat_interface.chat(msg, hist)
+        
+        # Store research data for study plan creation
+        last_research_data = research_data.copy()
+        last_research_data["answer_text"] = answer
+        last_query = msg.strip()
         
         # Initialize history if None
         if hist is None:
@@ -51,6 +82,8 @@ def create_gradio_ui():
         
         # Ensure msg is not empty
         if not msg or not msg.strip():
+            if is_notion_configured():
+                return [], "No citations yet.", "No sources used yet.", gr.update(interactive=False)
             return [], "No citations yet.", "No sources used yet."
         
         # Convert history to dictionary format if needed
@@ -79,14 +112,126 @@ def create_gradio_ui():
         agent_results = research_data.get("agent_results", {})
         sources_summary = format_agent_results_summary(agent_results)
         
-        return formatted_hist, citations_markdown, sources_summary
+        # Enable Notion button if we have citations and Notion is configured
+        notion_button_enabled = (
+            is_notion_configured() and 
+            len(citations) > 0
+        )
+        
+        return formatted_hist, citations_markdown, sources_summary, gr.update(interactive=notion_button_enabled)
     
     def clear_chat_handler():
         chat_interface.clear_session()
     
     def clear_research_handler():
+        nonlocal last_research_data, last_query
         chat_interface.clear_session()
-        return [], "*No citations yet.*", "*No sources used yet.*"
+        last_research_data = {}
+        last_query = ""
+        return [], "*No citations yet.*", "*No sources used yet.*", gr.update(interactive=False)
+    
+    def create_notion_study_plan():
+        """Create a Notion study plan using the orchestrator and Notion agent."""
+        nonlocal last_research_data, last_query
+        
+        
+        if not is_notion_configured():
+            return "❌ Notion is not configured. Set either:\n- MCP mode: USE_NOTION_MCP=true and NOTION_MCP_COMMAND\n- Direct API mode: NOTION_API_KEY and NOTION_PARENT_PAGE_ID"
+        
+        if not last_research_data or not last_query:
+            return "❌ No research data available. Please perform a research query first."
+        
+        citations = last_research_data.get("citations", [])
+        if not citations:
+            return "❌ No citations found. Please perform a research query with results first."
+        
+        parent_page_id = getattr(config, 'NOTION_PARENT_PAGE_ID', None)
+        if not parent_page_id:
+            return "❌ NOTION_PARENT_PAGE_ID not configured. Please set it in your environment variables."
+        
+        try:
+            # Format research data for Notion agent
+            answer_text = last_research_data.get("answer_text", "")
+            agent_results = last_research_data.get("agent_results", {})
+            
+            # Create a formatted message for the Notion agent
+            # The agent will parse this to extract research data
+            import json
+            research_context = {
+                "query": last_query,
+                "citations": citations,
+                "answer": answer_text,
+                "agent_results": agent_results,
+                "parent_page_id": parent_page_id
+            }
+            
+            # Format as a structured message for the agent
+            notion_query = f"""Create a study plan in Notion with the following research data:
+
+Research Query: {last_query}
+
+Research Summary:
+{answer_text[:1000]}
+
+Citations ({len(citations)} total):
+{json.dumps(citations[:10], indent=2)[:2000]}
+
+Parent Page ID: {parent_page_id}
+
+Please create a comprehensive study plan with:
+- Overview section
+- Learning objectives
+- Key concepts
+- Resources organized by type
+- Timeline
+- Next steps
+
+Use the notion-create-pages tool to create the page."""
+            
+            # Invoke orchestrator with create_study_plan flag
+            from langchain_core.messages import HumanMessage
+            
+            
+            result = rag_system.agent_graph.invoke(
+                {
+                    "messages": [HumanMessage(content=notion_query)],
+                    "create_study_plan": True,
+                    "originalQuery": last_query,
+                    "citations": citations,
+                    "agent_results": agent_results
+                },
+                rag_system.get_config()
+            )
+            
+            
+            # Extract Notion page URL from result
+            final_message = result.get("messages", [])[-1] if result.get("messages") else None
+            if final_message:
+                answer_content = final_message.content if hasattr(final_message, 'content') else str(final_message)
+                
+                # Look for URL in the answer
+                import re
+                url_pattern = r'https?://[^\s\)]+'
+                urls = re.findall(url_pattern, answer_content)
+                
+                if urls:
+                    page_url = urls[0]
+                    return f"✅ Study plan created successfully! [View in Notion]({page_url})"
+                else:
+                    # Check state for notion_page_url
+                    notion_url = result.get("notion_page_url", "")
+                    if notion_url:
+                        return f"✅ Study plan created successfully! [View in Notion]({notion_url})"
+                    else:
+                        return f"✅ Study plan creation initiated. Response: {answer_content[:200]}..."
+            
+            return "✅ Study plan creation completed. Check Notion for the new page."
+        
+        except Exception as e:
+            logger.error(f"Failed to create Notion study plan: {e}")
+            import traceback
+            traceback.print_exc()
+            return f"❌ Error creating study plan: {str(e)}"
     
     # Create theme (will be passed to launch() in Gradio 6.0)
     theme = gr.themes.Base(
@@ -217,6 +362,24 @@ def create_gradio_ui():
                         elem_id="citations-display",
                         elem_classes="citations-box"
                     )
+                    
+                    # Notion Study Plan Button
+                    if is_notion_configured():
+                        gr.Markdown("---")
+                        gr.Markdown("### 📝 Notion Integration")
+                        
+                        notion_button = gr.Button(
+                            "📝 Create Study Plan in Notion",
+                            variant="primary",
+                            size="md",
+                            interactive=False,
+                            elem_id="notion-study-plan-btn"
+                        )
+                        
+                        notion_status = gr.Markdown(
+                            value="",
+                            elem_id="notion-status"
+                        )
             
             # File upload handler for Research tab
             def research_upload_handler(files, progress=gr.Progress()):
@@ -246,10 +409,18 @@ def create_gradio_ui():
             def submit_research(msg, hist):
                 return research_chat_handler(msg, hist)
             
+            # Determine outputs based on whether Notion is configured
+            if is_notion_configured():
+                research_outputs = [research_chatbot, citations_display, sources_summary, notion_button]
+                clear_outputs = [research_chatbot, citations_display, sources_summary, notion_button]
+            else:
+                research_outputs = [research_chatbot, citations_display, sources_summary]
+                clear_outputs = [research_chatbot, citations_display, sources_summary]
+            
             research_submit_btn.click(
                 submit_research,
                 inputs=[research_input, research_chatbot],
-                outputs=[research_chatbot, citations_display, sources_summary]
+                outputs=research_outputs
             ).then(
                 lambda: "",  # Clear input
                 outputs=[research_input]
@@ -258,7 +429,7 @@ def create_gradio_ui():
             research_input.submit(
                 submit_research,
                 inputs=[research_input, research_chatbot],
-                outputs=[research_chatbot, citations_display, sources_summary]
+                outputs=research_outputs
             ).then(
                 lambda: "",  # Clear input
                 outputs=[research_input]
@@ -266,8 +437,15 @@ def create_gradio_ui():
             
             research_clear_btn.click(
                 clear_research_handler,
-                outputs=[research_chatbot, citations_display, sources_summary]
+                outputs=clear_outputs
             )
+            
+            # Notion study plan button handler
+            if is_notion_configured():
+                notion_button.click(
+                    create_notion_study_plan,
+                    outputs=[notion_status]
+                )
     
     # Attach theme and css to demo for Gradio 6.0
     demo.theme = theme

@@ -11,6 +11,15 @@ import os
 from typing import Optional
 from functools import lru_cache
 
+# Load environment variables from .env file (if present)
+# This must happen before any os.getenv() calls
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # python-dotenv not installed, skip .env loading
+    pass
+
 # Detect if running on GCP
 def is_gcp_environment() -> bool:
     """Check if running on GCP."""
@@ -69,9 +78,15 @@ def get_secret(secret_id: str, project_id: Optional[str] = None) -> Optional[str
     return None
 
 # --- Directory Configuration ---
-MARKDOWN_DIR = os.getenv("MARKDOWN_DIR", "markdown_docs")
-PARENT_STORE_PATH = os.getenv("PARENT_STORE_PATH", "parent_store")
-QDRANT_DB_PATH = os.getenv("QDRANT_DB_PATH", "qdrant_db")
+# Use /tmp on GCP (Cloud Run ephemeral storage), otherwise use local paths
+if is_gcp_environment():
+    MARKDOWN_DIR = os.getenv("MARKDOWN_DIR", "/tmp/markdown_docs")
+    PARENT_STORE_PATH = os.getenv("PARENT_STORE_PATH", "/tmp/parent_store")
+    QDRANT_DB_PATH = os.getenv("QDRANT_DB_PATH", "/tmp/qdrant_db")
+else:
+    MARKDOWN_DIR = os.getenv("MARKDOWN_DIR", "markdown_docs")
+    PARENT_STORE_PATH = os.getenv("PARENT_STORE_PATH", "parent_store")
+    QDRANT_DB_PATH = os.getenv("QDRANT_DB_PATH", "qdrant_db")
 
 # --- Qdrant Configuration ---
 CHILD_COLLECTION = os.getenv("CHILD_COLLECTION", "document_child_chunks")
@@ -107,12 +122,28 @@ ENABLE_RESEARCH_CACHE = os.getenv("ENABLE_RESEARCH_CACHE", "true").lower() == "t
 # --- MCP Server Configuration ---
 USE_GITHUB_MCP = os.getenv("USE_GITHUB_MCP", "false").lower() == "true"
 USE_WEB_SEARCH_MCP = os.getenv("USE_WEB_SEARCH_MCP", "false").lower() == "true"
+USE_NOTION_MCP = os.getenv("USE_NOTION_MCP", "false").lower() == "true"
 
-# Remote MCP Server URLs
-GITHUB_MCP_SERVER_URL = os.getenv("GITHUB_MCP_SERVER_URL")
-WEB_SEARCH_MCP_SERVER_URL = os.getenv("WEB_SEARCH_MCP_SERVER_URL")
-MCP_SERVER_AUTH_TOKEN = os.getenv("MCP_SERVER_AUTH_TOKEN")
-MCP_CONNECTION_TIMEOUT = int(os.getenv("MCP_CONNECTION_TIMEOUT", "30"))
+# MCP server commands (local stdio transport)
+# GitHub MCP: default to npx-based server
+_github_mcp_cmd = os.getenv("GITHUB_MCP_COMMAND", "npx,-y,@modelcontextprotocol/server-github")
+GITHUB_MCP_COMMAND = _github_mcp_cmd.split(",") if isinstance(_github_mcp_cmd, str) else _github_mcp_cmd
+_github_mcp_args = os.getenv("GITHUB_MCP_ARGS", "")
+GITHUB_MCP_ARGS = _github_mcp_args.split(",") if _github_mcp_args else []
+
+# Web Search MCP: default to Python-based server (custom implementation)
+_web_mcp_cmd = os.getenv("WEB_SEARCH_MCP_COMMAND", "")
+WEB_SEARCH_MCP_COMMAND = _web_mcp_cmd.split(",") if _web_mcp_cmd else None  # None means use direct API
+_web_mcp_args = os.getenv("WEB_SEARCH_MCP_ARGS", "")
+WEB_SEARCH_MCP_ARGS = _web_mcp_args.split(",") if _web_mcp_args else []
+
+# Notion MCP: default to npx-based server
+_notion_mcp_cmd = os.getenv("NOTION_MCP_COMMAND", "npx,-y,@modelcontextprotocol/server-notion")
+NOTION_MCP_COMMAND = _notion_mcp_cmd.split(",") if isinstance(_notion_mcp_cmd, str) else _notion_mcp_cmd
+_notion_mcp_args = os.getenv("NOTION_MCP_ARGS", "")
+NOTION_MCP_ARGS = _notion_mcp_args.split(",") if _notion_mcp_args else []
+
+NOTION_PARENT_PAGE_ID = os.getenv("NOTION_PARENT_PAGE_ID")
 
 # --- API Keys (from Secret Manager or env vars) ---
 # Priority: Environment variable > Secret Manager > None
@@ -120,6 +151,7 @@ GOOGLE_API_KEY = get_secret("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
 YOUTUBE_API_KEY = get_secret("YOUTUBE_API_KEY") or os.getenv("YOUTUBE_API_KEY")
 GITHUB_TOKEN = get_secret("GITHUB_TOKEN") or os.getenv("GITHUB_TOKEN")
 TAVILY_API_KEY = get_secret("TAVILY_API_KEY") or os.getenv("TAVILY_API_KEY")
+NOTION_API_KEY = get_secret("NOTION_API_KEY") or os.getenv("NOTION_API_KEY")
 
 # Log configuration source
 if is_gcp_environment():

@@ -22,6 +22,16 @@ def analyze_chat_and_summarize(state: State, llm):
     return {"conversation_summary": summary_response.content, "agent_answers": [{"__reset__": True}]}
 
 def analyze_and_rewrite_query(state: State, llm):
+    # Skip analysis if creating study plan - data already in state
+    if state.get("create_study_plan", False):
+        # Preserve messages and state for Notion agent
+        return {
+            "questionIsClear": True,  # Allow routing to proceed
+            "messages": state.get("messages", []),  # Keep original messages
+            "originalQuery": state.get("originalQuery", ""),
+            "rewrittenQuestions": state.get("rewrittenQuestions", [])
+        }
+    
     last_message = state["messages"][-1]
     conversation_summary = state.get("conversation_summary", "")
 
@@ -191,7 +201,18 @@ def aggregate_responses(state: State, llm):
                 })
     
     # Error handling: no agent answers
+    # Special case: if create_study_plan is True, we might not have agent_answers
+    # (research was done previously, we're just creating the study plan)
     if not agent_answers:
+        if state.get("create_study_plan", False):
+            # Study plan creation mode - research data already in state
+            # Just pass through to allow Notion agent to proceed
+            return {
+                "messages": state.get("messages", []),
+                "agent_results": state.get("agent_results", {}),
+                "citations": state.get("citations", [])
+            }
+        
         error_msg = (
             "I apologize, but I was unable to retrieve information from any of the selected sources. "
             "This could be due to:\n"

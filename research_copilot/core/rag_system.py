@@ -1,4 +1,5 @@
 import uuid
+import atexit
 from langchain_core.language_models import BaseChatModel
 from research_copilot.config import settings as config
 from research_copilot.storage.qdrant_client import VectorDbManager
@@ -10,6 +11,11 @@ from research_copilot.rag.retriever import Retriever
 from research_copilot.tools.registry import initialize_registry
 from research_copilot.tools.base import SourceType
 from research_copilot.orchestrator.graph import create_agent_graph
+from research_copilot.storage.cloud_storage import (
+    initialize_cloud_storage_sync,
+    sync_all_from_gcs,
+    sync_all_to_gcs
+)
 
 def create_llm() -> BaseChatModel:
     """Create LLM instance based on configured provider."""
@@ -55,8 +61,26 @@ class RAGSystem:
         self.reranker = None
         self.retriever = None
         self.research_cache = None
+        self.gcs_sync = None
         
     def initialize(self):
+        # Sync from Cloud Storage on startup (if on GCP)
+        self.gcs_sync = initialize_cloud_storage_sync()
+        if self.gcs_sync:
+            sync_all_from_gcs(
+                config.QDRANT_DB_PATH,
+                config.PARENT_STORE_PATH,
+                config.MARKDOWN_DIR,
+                self.gcs_sync
+            )
+            # Register shutdown handler to sync to GCS
+            atexit.register(
+                sync_all_to_gcs,
+                config.QDRANT_DB_PATH,
+                config.PARENT_STORE_PATH,
+                config.MARKDOWN_DIR,
+                self.gcs_sync
+            )
         self.vector_db.create_collection(self.collection_name)
         collection = self.vector_db.get_collection(self.collection_name)
         

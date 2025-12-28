@@ -39,16 +39,19 @@ def create_config(args: argparse.Namespace) -> Mock:
     config.USE_GITHUB_MCP = args.github or args.all
     config.USE_WEB_SEARCH_MCP = args.tavily or args.all
     
-    # Remote MCP server URLs (required)
-    config.GITHUB_MCP_SERVER_URL = args.github_url or os.getenv("GITHUB_MCP_SERVER_URL")
-    config.WEB_SEARCH_MCP_SERVER_URL = args.tavily_url or os.getenv("WEB_SEARCH_MCP_SERVER_URL")
-    config.MCP_SERVER_AUTH_TOKEN = args.auth_token or os.getenv("MCP_SERVER_AUTH_TOKEN")
+    # Local MCP server commands (stdio transport)
+    github_cmd = args.github_url or os.getenv("GITHUB_MCP_COMMAND", "npx,-y,@modelcontextprotocol/server-github")
+    config.GITHUB_MCP_COMMAND = github_cmd.split(",") if isinstance(github_cmd, str) else github_cmd
+    config.GITHUB_MCP_ARGS = []
     
-    # API keys/tokens (for server-side use or fallback)
+    web_cmd = args.tavily_url or os.getenv("WEB_SEARCH_MCP_COMMAND", "")
+    config.WEB_SEARCH_MCP_COMMAND = web_cmd.split(",") if web_cmd else None
+    config.WEB_SEARCH_MCP_ARGS = []
+    
+    # API keys/tokens (passed to MCP server via environment)
     config.GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", args.github_token)
     config.TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", args.tavily_key)
     config.MAX_WEB_RESULTS = 10
-    config.MCP_CONNECTION_TIMEOUT = 30
     
     return config
 
@@ -64,7 +67,8 @@ async def test_github_mcp_tools(config: Mock) -> None:
     print(f"\nConfiguration:")
     print(f"  MCP Enabled: {toolkit.use_mcp}")
     if toolkit.use_mcp:
-        print(f"  Remote URL: {getattr(config, 'GITHUB_MCP_SERVER_URL', 'N/A')}")
+        cmd = getattr(config, 'GITHUB_MCP_COMMAND', None)
+        print(f"  MCP Command: {' '.join(cmd) if cmd else 'N/A'}")
     print(f"  GitHub Token: {'Set' if toolkit.token else 'Not set (rate limited)'}")
     
     # Initialize MCP
@@ -207,7 +211,8 @@ async def test_tavily_mcp_tools(config: Mock) -> None:
     print(f"\nConfiguration:")
     print(f"  MCP Enabled: {toolkit.use_mcp}")
     if toolkit.use_mcp:
-        print(f"  Remote URL: {getattr(config, 'WEB_SEARCH_MCP_SERVER_URL', 'N/A')}")
+        cmd = getattr(config, 'WEB_SEARCH_MCP_COMMAND', None)
+        print(f"  MCP Command: {' '.join(cmd) if cmd else 'N/A'}")
     print(f"  Tavily API Key: {'Set' if toolkit.tavily_api_key else 'Not set'}")
     
     # Initialize MCP
@@ -341,25 +346,25 @@ async def test_tavily_mcp_tools(config: Mock) -> None:
 async def test_mcp_adapter_directly(config: Mock) -> None:
     """Test MCP adapter directly."""
     print("\n" + "="*80)
-    print("MCP ADAPTER DIRECT TEST (Remote Only)")
+    print("MCP ADAPTER DIRECT TEST (Local stdio)")
     print("="*80)
     
     # Test GitHub MCP
     if config.USE_GITHUB_MCP:
         print("\n--- Testing GitHub MCP Adapter ---")
-        server_url = getattr(config, 'GITHUB_MCP_SERVER_URL')
-        if not server_url:
-            print("❌ GITHUB_MCP_SERVER_URL not configured")
+        command = getattr(config, 'GITHUB_MCP_COMMAND', None)
+        if not command:
+            print("❌ GITHUB_MCP_COMMAND not configured")
         else:
-            headers = {}
-            auth_token = getattr(config, 'MCP_SERVER_AUTH_TOKEN')
-            if auth_token:
-                headers["Authorization"] = f"Bearer {auth_token}"
+            args = getattr(config, 'GITHUB_MCP_ARGS', [])
+            env = {}
+            if config.GITHUB_TOKEN:
+                env["GITHUB_TOKEN"] = config.GITHUB_TOKEN
             
             server_config = {
-                "url": server_url,
-                "headers": headers,
-                "timeout": 30
+                "command": command,
+                "args": args,
+                "env": env
             }
             
             adapter = MCPToolAdapter("github", server_config)
@@ -376,21 +381,19 @@ async def test_mcp_adapter_directly(config: Mock) -> None:
     # Test Tavily MCP
     if config.USE_WEB_SEARCH_MCP:
         print("\n--- Testing Tavily MCP Adapter ---")
-        server_url = getattr(config, 'WEB_SEARCH_MCP_SERVER_URL')
-        if not server_url:
-            print("❌ WEB_SEARCH_MCP_SERVER_URL not configured")
+        command = getattr(config, 'WEB_SEARCH_MCP_COMMAND', None)
+        if not command:
+            print("❌ WEB_SEARCH_MCP_COMMAND not configured")
         else:
-            headers = {}
-            auth_token = getattr(config, 'MCP_SERVER_AUTH_TOKEN')
-            if auth_token:
-                headers["Authorization"] = f"Bearer {auth_token}"
+            args = getattr(config, 'WEB_SEARCH_MCP_ARGS', [])
+            env = {}
             if config.TAVILY_API_KEY:
-                headers["X-Tavily-API-Key"] = config.TAVILY_API_KEY
+                env["TAVILY_API_KEY"] = config.TAVILY_API_KEY
             
             server_config = {
-                "url": server_url,
-                "headers": headers,
-                "timeout": 30
+                "command": command,
+                "args": args,
+                "env": env
             }
             
             adapter = MCPToolAdapter("tavily", server_config)
@@ -408,22 +411,25 @@ async def test_mcp_adapter_directly(config: Mock) -> None:
 def main():
     """Main function."""
     parser = argparse.ArgumentParser(
-        description="Manual test script for remote MCP tools",
+        description="Manual test script for local MCP tools (stdio)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Test GitHub MCP
-  python3 test_mcp_manual.py --github-only --github-url https://mcp-github.example.com/sse
+  # Test GitHub MCP (uses default: npx -y @modelcontextprotocol/server-github)
+  python3 test_mcp_manual.py --github-only
   
-  # Test Tavily MCP
-  python3 test_mcp_manual.py --tavily-only --tavily-url https://mcp-tavily.example.com/sse
+  # Test GitHub MCP with custom command
+  python3 test_mcp_manual.py --github-only --github-command "npx,-y,@modelcontextprotocol/server-github"
   
-  # Test both
-  python3 test_mcp_manual.py --all --github-url https://... --tavily-url https://...
+  # Test Tavily MCP with custom command
+  python3 test_mcp_manual.py --tavily-only --tavily-command "python,-m,mcp_server_web_search"
+  
+  # Test both (uses defaults)
+  python3 test_mcp_manual.py --all
   
   # Use environment variables
-  export GITHUB_MCP_SERVER_URL="https://..."
-  export WEB_SEARCH_MCP_SERVER_URL="https://..."
+  export GITHUB_MCP_COMMAND="npx,-y,@modelcontextprotocol/server-github"
+  export WEB_SEARCH_MCP_COMMAND="python,-m,mcp_server_web_search"
   python3 test_mcp_manual.py --all
         """
     )
@@ -434,10 +440,9 @@ Examples:
     parser.add_argument("--all", action="store_true", help="Test both (default)")
     parser.add_argument("--adapter", action="store_true", help="Test adapter directly")
     
-    # Remote server URLs (required)
-    parser.add_argument("--github-url", type=str, help="GitHub MCP server URL (or use GITHUB_MCP_SERVER_URL env)")
-    parser.add_argument("--tavily-url", type=str, help="Tavily MCP server URL (or use WEB_SEARCH_MCP_SERVER_URL env)")
-    parser.add_argument("--auth-token", type=str, help="Authentication token (or use MCP_SERVER_AUTH_TOKEN env)")
+    # MCP server commands (comma-separated, defaults provided)
+    parser.add_argument("--github-command", type=str, help="GitHub MCP command (comma-separated, or use GITHUB_MCP_COMMAND env)")
+    parser.add_argument("--tavily-command", type=str, help="Tavily MCP command (comma-separated, or use WEB_SEARCH_MCP_COMMAND env)")
     
     # API keys (can also use environment variables)
     parser.add_argument("--github-token", type=str, help="GitHub token (or use GITHUB_TOKEN env)")
@@ -456,11 +461,7 @@ Examples:
         args.github = True
         args.tavily = True
     
-    # Validate required URLs
-    if args.github and not (args.github_url or os.getenv("GITHUB_MCP_SERVER_URL")):
-        parser.error("--github-url or GITHUB_MCP_SERVER_URL environment variable is required")
-    if args.tavily and not (args.tavily_url or os.getenv("WEB_SEARCH_MCP_SERVER_URL")):
-        parser.error("--tavily-url or WEB_SEARCH_MCP_SERVER_URL environment variable is required")
+    # Commands are optional (defaults provided in create_config)
     
     # Create config
     config = create_config(args)

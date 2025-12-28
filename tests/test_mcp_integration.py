@@ -7,9 +7,9 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock, AsyncMock
 import asyncio
 
-from tools.github_tools import GitHubToolkit
-from tools.web_tools import WebToolkit
-from tools.registry import ToolRegistry
+from research_copilot.tools.github_tools import GitHubToolkit
+from research_copilot.tools.web_tools import WebToolkit
+from research_copilot.tools.registry import ToolRegistry
 
 
 class TestGitHubMCPIntegration:
@@ -40,7 +40,7 @@ class TestGitHubMCPIntegration:
         assert toolkit.use_mcp is True
         
         # Mock MCP adapter to fail connection
-        with patch('tools.github_tools.MCPToolAdapter') as mock_adapter_class:
+        with patch('research_copilot.tools.github_tools.MCPToolAdapter') as mock_adapter_class:
             mock_adapter = AsyncMock()
             mock_adapter.connect = AsyncMock(return_value=False)
             mock_adapter.create_langchain_tools = AsyncMock()
@@ -65,7 +65,7 @@ class TestGitHubMCPIntegration:
         mock_tool.name = "github_search_repositories"
         mock_tool.description = "Search GitHub repositories"
         
-        with patch('tools.github_tools.MCPToolAdapter') as mock_adapter_class:
+        with patch('research_copilot.tools.github_tools.MCPToolAdapter') as mock_adapter_class:
             mock_adapter = AsyncMock()
             mock_adapter.connect = AsyncMock(return_value=True)
             mock_adapter.create_langchain_tools = AsyncMock(return_value=[mock_tool])
@@ -145,7 +145,7 @@ class TestWebMCPIntegration:
         mock_tool.name = "web_search"
         mock_tool.description = "Search the web"
         
-        with patch('tools.web_tools.MCPToolAdapter') as mock_adapter_class:
+        with patch('research_copilot.tools.web_tools.MCPToolAdapter') as mock_adapter_class:
             mock_adapter = AsyncMock()
             mock_adapter.connect = AsyncMock(return_value=True)
             mock_adapter.create_langchain_tools = AsyncMock(return_value=[mock_tool])
@@ -176,7 +176,7 @@ class TestMCPRegistryIntegration:
         registry = ToolRegistry()
         
         # Mock MCP initialization
-        with patch('tools.github_tools.GitHubToolkit') as mock_toolkit_class:
+        with patch('research_copilot.tools.github_tools.GitHubToolkit') as mock_toolkit_class:
             mock_toolkit = Mock()
             mock_toolkit.is_available = Mock(return_value=True)
             mock_toolkit.use_mcp = True
@@ -225,7 +225,7 @@ class TestMCPFallbackBehavior:
         toolkit = GitHubToolkit(config)
         
         # Simulate MCP connection failure
-        with patch('tools.github_tools.MCPToolAdapter') as mock_adapter_class:
+        with patch('research_copilot.tools.github_tools.MCPToolAdapter') as mock_adapter_class:
             mock_adapter = AsyncMock()
             mock_adapter.connect = AsyncMock(return_value=False)
             mock_adapter_class.return_value = mock_adapter
@@ -248,7 +248,7 @@ class TestMCPFallbackBehavior:
         toolkit = WebToolkit(config)
         
         # Simulate MCP connection failure
-        with patch('tools.web_tools.MCPToolAdapter') as mock_adapter_class:
+        with patch('research_copilot.tools.web_tools.MCPToolAdapter') as mock_adapter_class:
             mock_adapter = AsyncMock()
             mock_adapter.connect = AsyncMock(return_value=False)
             mock_adapter_class.return_value = mock_adapter
