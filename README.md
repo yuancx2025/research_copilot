@@ -99,11 +99,19 @@ flowchart TD
    ```
    
    This will install all required dependencies including:
-   - Gradio 6.x for the UI
    - LangChain and LangGraph for agent orchestration
    - Qdrant for vector storage
-   - OpenAI, Anthropic, and Google Gemini integrations
-   - And many more (see `setup.py`)
+   - Google Gemini, OpenAI, and Ollama LLM integrations
+   - Tavily for web search
+   - ArXiv, YouTube, and GitHub API clients
+   - Gradio for the UI
+   - MCP (Model Context Protocol) support
+   - And many more (see `pyproject.toml`)
+   
+   **Optional: Install GCP deployment dependencies** (if deploying to Google Cloud):
+   ```bash
+   pip install -e ".[gcp]"
+   ```
 
 ### Configuration
 
@@ -265,16 +273,18 @@ The UI uses a modern dark theme with custom CSS. You can modify the styling in:
 ## 📦 Dependencies
 
 Key dependencies:
-- **gradio** (6.x) - Web UI framework
-- **langchain** - LLM application framework
-- **langgraph** - Agent orchestration
-- **qdrant-client** - Vector database
-- **openai** - OpenAI API client
-- **google-generativeai** - Google Gemini integration
-- **pypdf** - PDF processing
-- **markdown** - Markdown processing
+- **langchain & langgraph** - LLM application framework and agent orchestration
+- **qdrant-client** - Vector database for semantic search
+- **langchain-google-genai** - Google Gemini integration (recommended)
+- **langchain-tavily** - Web search integration
+- **gradio** - Web UI framework
+- **arxiv, youtube-transcript-api, PyGithub** - Source-specific API clients
+- **pymupdf, pypdf** - PDF processing
+- **sentence-transformers, fastembed** - Embedding models
+- **mcp, langchain-mcp-adapters** - Model Context Protocol support
+- **pydantic, python-dotenv** - Configuration management
 
-See `setup.py` for the complete list.
+See `pyproject.toml` for the complete list.
 
 ## 🚧 Current Limitations & Future Roadmap
 
