@@ -105,7 +105,6 @@ class GitHubToolkit(BaseToolkit):
                 "sort": sort if sort != "best-match" else None,
                 "per_page": max_results
             }
-            
             response = requests.get(
                 f"{self.base_url}/search/repositories",
                 headers=self.headers,
@@ -115,16 +114,33 @@ class GitHubToolkit(BaseToolkit):
             data = response.json()
             
             results = []
-            for repo in data.get("items", [])[:max_results]:
+            if not isinstance(data, dict):
+                return [{"error": f"Invalid response format: expected dict, got {type(data)}"}]
+            
+            items = data.get("items", [])
+            if not isinstance(items, list):
+                return [{"error": f"Invalid items format: expected list, got {type(items)}"}]
+            
+            for repo in items[:max_results]:
+                # Validate repo is a dict
+                if not isinstance(repo, dict):
+                    continue
+                
+                updated_at = repo.get("updated_at")
+                if updated_at:
+                    updated_at = updated_at[:10]
+                else:
+                    updated_at = ""
+                
                 results.append({
-                    "full_name": repo["full_name"],
+                    "full_name": repo.get("full_name", ""),
                     "description": repo.get("description", "")[:200],
-                    "url": repo["html_url"],
-                    "stars": repo["stargazers_count"],
-                    "forks": repo["forks_count"],
+                    "url": repo.get("html_url", ""),
+                    "stars": repo.get("stargazers_count", 0),
+                    "forks": repo.get("forks_count", 0),
                     "language": repo.get("language"),
                     "topics": repo.get("topics", [])[:5],
-                    "updated_at": repo["updated_at"][:10],
+                    "updated_at": updated_at,
                     "source_type": "github"
                 })
             

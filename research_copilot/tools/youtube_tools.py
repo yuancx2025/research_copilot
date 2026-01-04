@@ -10,7 +10,7 @@ class YouTubeToolkit(BaseToolkit):
     """
     Tools for searching YouTube and extracting video transcripts.
     
-    This toolkit provides direct API access (no MCP server integration) because:
+    This toolkit provides direct API access:
     1. Transcript extraction is the PRIMARY VALUE for research (not available via most MCPs)
     2. youtube-transcript-api works reliably without API keys for transcript extraction
     3. Video search requires YouTube API key but users can provide URLs directly
@@ -44,6 +44,8 @@ class YouTubeToolkit(BaseToolkit):
                 self._youtube_client = build('youtube', 'v3', developerKey=self.api_key)
             except ImportError:
                 logger.warning("google-api-python-client not installed")
+            except Exception as e:
+                raise
         return self._youtube_client
     
     def is_available(self) -> bool:

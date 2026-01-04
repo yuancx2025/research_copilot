@@ -39,7 +39,9 @@ class ArxivToolkit(BaseToolkit):
             query: Search query - supports ArXiv syntax like 'cat:cs.AI' for categories,
                    'au:lastname' for authors, or natural language
             max_results: Maximum papers to return (default: 10)
-            sort_by: How to sort - 'relevance', 'lastUpdatedDate', or 'submittedDate'
+            sort_by: How to sort results. 
+                - "relevance" (default): Best for general topic searches
+                - "lastUpdatedDate": Best for finding recently updated papers
         
         Returns:
             List of papers with title, authors, abstract, and PDF link
@@ -47,8 +49,7 @@ class ArxivToolkit(BaseToolkit):
         try:
             sort_criterion = {
                 "relevance": arxiv.SortCriterion.Relevance,
-                "lastUpdatedDate": arxiv.SortCriterion.LastUpdatedDate,
-                "submittedDate": arxiv.SortCriterion.SubmittedDate
+                "lastUpdatedDate": arxiv.SortCriterion.LastUpdatedDate
             }.get(sort_by, arxiv.SortCriterion.Relevance)
             
             client = arxiv.Client()

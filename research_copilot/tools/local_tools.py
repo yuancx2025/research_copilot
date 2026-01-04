@@ -4,6 +4,7 @@ from .base import BaseToolkit, SourceType, Citation
 from research_copilot.storage.parent_store import ParentStoreManager
 from research_copilot.rag.retriever import Retriever
 from research_copilot.config import settings as config
+
 class LocalToolkit(BaseToolkit):
     """Tools for searching locally indexed documents."""
     
