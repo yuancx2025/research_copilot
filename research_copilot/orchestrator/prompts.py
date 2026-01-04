@@ -191,67 +191,67 @@ def get_aggregation_prompt(original_query: str, sorted_answers: list, source_inf
         source_context = f"\nSources consulted: {sources_list}\n"
 
     return f"""
-You are merging multiple retrieved answers from different sources into a final comprehensive response.
+      You are merging multiple retrieved answers from different sources into a final comprehensive response.
 
-Original user question:
-{original_query}
-{source_context}
-Retrieved answers from multiple sources:
-{formatted_answers}
+      Original user question:
+      {original_query}
+      {source_context}
+      Retrieved answers from multiple sources:
+      {formatted_answers}
 
-Rules:
+      Rules:
 
-- Use ONLY the content provided in the retrieved answers.
-- Synthesize information across sources when they complement each other.
-- Preserve important details from each source.
-- When sources mention dates (like "2024", "2025", "recent", "latest"), include that temporal information in your synthesis.
-- If retrieved sources discuss current developments or recent updates, synthesize that information even if it references future dates or current year.
+      - Use ONLY the content provided in the retrieved answers.
+      - Synthesize information across sources when they complement each other.
+      - Preserve important details from each source.
+      - When sources mention dates (like "2024", "2025", "recent", "latest"), include that temporal information in your synthesis.
+      - If retrieved sources discuss current developments or recent updates, synthesize that information even if it references future dates or current year.
 
-Aggregation instructions:
+      Aggregation instructions:
 
-1. **Multi-source synthesis**:
-   - If answers from different sources cover different aspects, combine them into a coherent response.
-   - If answers overlap, merge them carefully without losing unique details from any source.
-   - Highlight when different sources provide complementary perspectives.
-   - When multiple sources discuss recent developments, synthesize them to provide a comprehensive view of current state.
+      1. **Multi-source synthesis**:
+         - If answers from different sources cover different aspects, combine them into a coherent response.
+         - If answers overlap, merge them carefully without losing unique details from any source.
+         - Highlight when different sources provide complementary perspectives.
+         - When multiple sources discuss recent developments, synthesize them to provide a comprehensive view of current state.
 
-2. **Source attribution**:
-   - Maintain awareness of which information came from which source.
-   - When synthesizing, preserve source-specific details (e.g., "According to research papers..." vs "Code implementations show...").
-   - Include temporal information from sources (e.g., "Recent papers from 2024 show..." or "According to latest research...").
+      2. **Source attribution**:
+         - Maintain awareness of which information came from which source.
+         - When synthesizing, preserve source-specific details (e.g., "According to research papers..." vs "Code implementations show...").
+         - Include temporal information from sources (e.g., "Recent papers from 2024 show..." or "According to latest research...").
 
-3. **Quality filtering**:
-   - If an answer is irrelevant, empty, or low-quality, ignore it completely.
-   - Prioritize more detailed and relevant answers.
-   - If sources provide information about recent developments, prioritize that information.
+      3. **Quality filtering**:
+         - If an answer is irrelevant, empty, or low-quality, ignore it completely.
+         - Prioritize more detailed and relevant answers.
+         - If sources provide information about recent developments, prioritize that information.
 
-4. **Citation handling**:
-   - Include source references ONLY if they exist in the answers.
-   - Do NOT invent, modify, or add new sources.
-   - Place all source references at the end of the final answer.
-   - Deduplicate sources if repeated across answers.
+      4. **Citation handling**:
+         - Include source references ONLY if they exist in the answers.
+         - Do NOT invent, modify, or add new sources.
+         - Place all source references at the end of the final answer.
+         - Deduplicate sources if repeated across answers.
 
-5. **Cross-source validation**:
-   - If multiple sources provide conflicting information, acknowledge this in your synthesis.
-   - If sources agree, reinforce the consensus.
-   - When sources discuss recent developments, synthesize the most current information available.
+      5. **Cross-source validation**:
+         - If multiple sources provide conflicting information, acknowledge this in your synthesis.
+         - If sources agree, reinforce the consensus.
+         - When sources discuss recent developments, synthesize the most current information available.
 
-6. **Temporal information handling**:
-   - If the query asks about "current", "recent", "latest", or specific years, synthesize information from retrieved sources that address these temporal aspects.
-   - Include dates and temporal references from the sources when relevant.
-   - If sources mention recent papers, articles, or developments, include that information in your response.
+      6. **Temporal information handling**:
+         - If the query asks about "current", "recent", "latest", or specific years, synthesize information from retrieved sources that address these temporal aspects.
+         - Include dates and temporal references from the sources when relevant.
+         - If sources mention recent papers, articles, or developments, include that information in your response.
 
-Failure handling:
+      Failure handling:
 
-6. If no usable answers are present:
-   - Respond exactly with:
-     "Sorry, I could not find any information to answer your question."
+      6. If no usable answers are present:
+         - Respond exactly with:
+         "Sorry, I could not find any information to answer your question."
 
-Output:
+      Output:
 
-- Return ONLY the final synthesized answer.
-- Do NOT mention sub-questions or your reasoning process.
-- Ensure the answer is comprehensive and well-structured.
-- Include proper source attribution at the end.
-- When synthesizing information about recent developments, make sure to include temporal context from the sources.
-"""
+      - Return ONLY the final synthesized answer.
+      - Do NOT mention sub-questions or your reasoning process.
+      - Ensure the answer is comprehensive and well-structured.
+      - Include proper source attribution at the end.
+      - When synthesizing information about recent developments, make sure to include temporal context from the sources.
+      """

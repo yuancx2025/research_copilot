@@ -2,6 +2,7 @@ from typing import Literal, List, Optional
 from langgraph.types import Send
 from .state import State, AgentState
 from research_copilot.config import settings as config
+
 def route_after_rewrite(state: State) -> Literal["human_input", "process_question"]:
     if not state.get("questionIsClear", False):
         return "human_input"

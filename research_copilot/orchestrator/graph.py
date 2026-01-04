@@ -15,7 +15,7 @@ from research_copilot.agents.arxiv_agent import ArxivAgent
 from research_copilot.agents.youtube_agent import YouTubeAgent
 from research_copilot.agents.github_agent import GitHubAgent
 from research_copilot.agents.web_agent import WebAgent
-from research_copilot.agents.notion_agent import NotionAgent
+from research_copilot.notion.notion_service import create_notion_study_plan
 
 # CompiledGraph is the return type of StateGraph.compile()
 CompiledGraph = Any
@@ -96,26 +96,7 @@ def create_agent_registry(llm: BaseChatModel, config, collection=None) -> Dict[s
         except Exception as e:
             print(f"⚠ Warning: Failed to initialize Web agent: {e}")
     
-    # Create Notion Agent (if configured - either MCP or Direct API)
-    # Check for both MCP and Direct API configuration
-    enable_notion_mcp = getattr(config, 'USE_NOTION_MCP', False)
-    notion_mcp_command = getattr(config, 'NOTION_MCP_COMMAND', None)
-    notion_api_key = getattr(config, 'NOTION_API_KEY', None)
-    notion_parent_page_id = getattr(config, 'NOTION_PARENT_PAGE_ID', None)
-    
-    # Enable Notion agent if either MCP or Direct API is configured
-    enable_notion = (
-        (enable_notion_mcp and notion_mcp_command) or  # MCP mode (local stdio)
-        (notion_api_key and notion_parent_page_id)  # Direct API mode
-    )
-
-    if enable_notion:
-        try:
-            notion_agent = NotionAgent(llm, config)
-            registry["notion_agent"] = notion_agent.create_agent_subgraph()
-            print("✓ Notion agent initialized")
-        except Exception as e:
-            print(f"⚠ Warning: Failed to initialize Notion agent: {e}")
+    # Notion service is handled separately in graph creation, not as an agent
     
     if not registry:
         raise RuntimeError("No agents could be initialized. Check configuration and dependencies.")
@@ -154,13 +135,22 @@ def create_agent_graph(llm, config, collection=None, research_cache=None):
     graph_builder.add_node("classify_intent", partial(classify_research_intent, llm=llm))
     
     # Add agent nodes from registry
-    # Exclude notion_agent as it's handled separately (routes after aggregation)
     for agent_name, agent_subgraph in agent_registry.items():
-        if agent_name != "notion_agent":  # Exclude notion_agent from the loop
-            graph_builder.add_node(agent_name, agent_subgraph)
+        graph_builder.add_node(agent_name, agent_subgraph)
     
     # Aggregation node
     graph_builder.add_node("aggregate", partial(aggregate_responses, llm=llm))
+    
+    # Notion service node (if configured)
+    notion_api_key = getattr(config, 'NOTION_API_KEY', None)
+    notion_parent_page_id = getattr(config, 'NOTION_PARENT_PAGE_ID', None)
+    enable_notion = notion_api_key and notion_parent_page_id
+    
+    if enable_notion:
+        graph_builder.add_node(
+            "create_notion_plan",
+            partial(create_notion_study_plan, config=config, llm=llm)
+        )
     
     # Wire up edges
     graph_builder.add_edge(START, "summarize")
@@ -195,29 +185,21 @@ def create_agent_graph(llm, config, collection=None, research_cache=None):
     graph_builder.add_conditional_edges("classify_intent", route_after_classify)
     
     # All research agent nodes route to aggregate
-    # Notion agent routes differently (after aggregation if requested)
-    research_agents = [name for name in agent_registry.keys() if name != "notion_agent"]
-    for agent_name in research_agents:
+    for agent_name in agent_registry.keys():
         graph_builder.add_edge(agent_name, "aggregate")
-    
-    # Add Notion agent node if available (handled separately due to different routing)
-    if "notion_agent" in agent_registry:
-        graph_builder.add_node("notion_agent", agent_registry["notion_agent"])
     
     # Route after aggregate: check if study plan creation is requested
     def route_after_aggregate(state: State):
-        """Route to Notion agent if study plan creation is requested."""
-        if state.get("create_study_plan", False) and "notion_agent" in agent_registry:
-            return "notion_agent"
+        """Route to Notion service if study plan creation is requested."""
+        if state.get("create_study_plan", False) and enable_notion:
+            return "create_notion_plan"
         return END
     
     graph_builder.add_conditional_edges("aggregate", route_after_aggregate)
     
-    # Notion agent routes to END
-    # The Notion agent will receive the formatted query from the state messages
-    # The UI formats research data into a structured query that the agent can parse
-    if "notion_agent" in agent_registry:
-        graph_builder.add_edge("notion_agent", END)
+    # Notion service routes to END
+    if enable_notion:
+        graph_builder.add_edge("create_notion_plan", END)
     
     agent_graph = graph_builder.compile(
         checkpointer=checkpointer,
@@ -225,52 +207,4 @@ def create_agent_graph(llm, config, collection=None, research_cache=None):
     )
     
     print("✓ Orchestrator graph compiled successfully.")
-    return agent_graph
-
-
-def create_agent_graph_legacy(llm, tools_list):
-    """
-    Legacy single-agent graph (kept for backward compatibility).
-    
-    This is the old implementation that uses a single agent_subgraph.
-    New code should use create_agent_graph() with config and collection.
-    """
-    llm_with_tools = llm.bind_tools(tools_list)
-    tool_node = ToolNode(tools_list)
-
-    checkpointer = InMemorySaver()
-
-    print("Compiling agent graph...")
-    agent_builder = StateGraph(AgentState)
-    agent_builder.add_node("agent", partial(agent_node, llm_with_tools=llm_with_tools))
-    agent_builder.add_node("tools", tool_node)
-    agent_builder.add_node("extract_answer", extract_final_answer)
-    
-    agent_builder.add_edge(START, "agent")    
-    agent_builder.add_conditional_edges("agent", tools_condition, {"tools": "tools", END: "extract_answer"})
-    agent_builder.add_edge("tools", "agent")    
-    agent_builder.add_edge("extract_answer", END)
-    
-    agent_subgraph = agent_builder.compile()
-    
-    graph_builder = StateGraph(State)
-    graph_builder.add_node("summarize", partial(analyze_chat_and_summarize, llm=llm))
-    graph_builder.add_node("analyze_rewrite", partial(analyze_and_rewrite_query, llm=llm))
-    graph_builder.add_node("human_input", human_input_node)
-    graph_builder.add_node("process_question", agent_subgraph)
-    graph_builder.add_node("aggregate", partial(aggregate_responses, llm=llm))
-    
-    graph_builder.add_edge(START, "summarize")
-    graph_builder.add_edge("summarize", "analyze_rewrite")
-    graph_builder.add_conditional_edges("analyze_rewrite", route_after_rewrite)
-    graph_builder.add_edge("human_input", "analyze_rewrite")
-    graph_builder.add_edge(["process_question"], "aggregate")
-    graph_builder.add_edge("aggregate", END)
-
-    agent_graph = graph_builder.compile(
-        checkpointer=checkpointer,
-        interrupt_before=["human_input"]
-    )
-
-    print("✓ Agent graph compiled successfully.")
     return agent_graph
