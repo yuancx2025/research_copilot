@@ -16,7 +16,7 @@ except ImportError:
 
 # Try to import GCP settings (with Secret Manager support), fall back to basic config
 try:
-    from research_copilot.config.gcp_settings import *
+    from .gcp_settings import *
     _using_gcp_config = True
 except ImportError:
     # Fallback: Basic configuration using environment variables only
@@ -61,7 +61,6 @@ except ImportError:
     # --- MCP Server Configuration ---
     USE_GITHUB_MCP = os.getenv("USE_GITHUB_MCP", "false").lower() == "true"
     USE_WEB_SEARCH_MCP = os.getenv("USE_WEB_SEARCH_MCP", "false").lower() == "true"
-    USE_NOTION_MCP = os.getenv("USE_NOTION_MCP", "false").lower() == "true"
     
     # MCP server commands (local stdio transport)
     # GitHub MCP: default to npx-based server
@@ -76,12 +75,7 @@ except ImportError:
     _web_mcp_args = os.getenv("WEB_SEARCH_MCP_ARGS", "")
     WEB_SEARCH_MCP_ARGS = _web_mcp_args.split(",") if _web_mcp_args else []
     
-    # Notion MCP: default to npx-based server
-    _notion_mcp_cmd = os.getenv("NOTION_MCP_COMMAND", "npx,-y,@modelcontextprotocol/server-notion")
-    NOTION_MCP_COMMAND = _notion_mcp_cmd.split(",") if isinstance(_notion_mcp_cmd, str) else _notion_mcp_cmd
-    _notion_mcp_args = os.getenv("NOTION_MCP_ARGS", "")
-    NOTION_MCP_ARGS = _notion_mcp_args.split(",") if _notion_mcp_args else []
-    
+    # Notion Configuration (Direct API only)
     NOTION_PARENT_PAGE_ID = os.getenv("NOTION_PARENT_PAGE_ID")
     
     # --- API Keys (from environment variables) ---
