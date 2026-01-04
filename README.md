@@ -2,6 +2,53 @@
 
 An AI-powered research assistant that helps you explore, analyze, and synthesize information from multiple sources including local documents, academic papers, web content, GitHub repositories, and YouTube videos.
 
+## 🏗️ System Architecture
+
+```mermaid
+flowchart TD
+    Start[User Query] --> Summarize[Summarize Conversation History]
+    Summarize --> AnalyzeRewrite[Analyze and Rewrite Query]
+
+    AnalyzeRewrite -->|Query Unclear| HumanInput[Request Clarification]
+    HumanInput --> AnalyzeRewrite
+
+    AnalyzeRewrite -->|Query Clear| ClassifyIntent[Classify Research Intent]
+
+    ClassifyIntent --> Router{Intent Router}
+
+    Router -->|ArXiv| ArXivAgent[ArXiv Agent]
+    Router -->|YouTube| YouTubeAgent[YouTube Agent]
+    Router -->|GitHub| GitHubAgent[GitHub Agent]
+    Router -->|Web| WebAgent[Web Agent]
+    Router -->|Local Docs| LocalAgent[Local RAG Agent]
+
+    ArXivAgent --> Aggregate[Aggregate Results]
+    YouTubeAgent --> Aggregate
+    GitHubAgent --> Aggregate
+    WebAgent --> Aggregate
+    LocalAgent --> Aggregate
+
+    Aggregate --> NotionCheck{Create Study Plan}
+
+    NotionCheck -->|Yes| NotionService[Notion Service]
+    NotionCheck -->|No| End[Return Response]
+
+    NotionService --> End
+
+    style ClassifyIntent fill:#4a9eff,stroke:#2d5f9f,color:#ffffff
+    style Router fill:#ff6b6b,stroke:#c92a2a,color:#ffffff
+    style Aggregate fill:#51cf66,stroke:#2f9e44,color:#ffffff
+    style NotionService fill:#9775fa,stroke:#6741d9,color:#ffffff
+```
+
+**Key Architecture Features:**
+- **LLM-Powered Intent Classification**: Analyzes user queries to determine which specialized agents to invoke (ArXiv for papers, GitHub for code, YouTube for videos, etc.)
+- **Parallel Agent Execution**: Uses LangGraph's `Send` objects to execute multiple agents simultaneously, reducing latency
+- **Smart Query Rewriting**: Breaks down complex queries into optimized sub-queries for each agent
+- **Citation Tracking**: Each agent collects sources with metadata (title, URL, snippet, source type) that flow through the pipeline
+- **Dynamic Aggregation**: LLM synthesizes responses from multiple agents into a coherent answer with proper citations
+- **Optional Study Plan Generation**: Results can be transformed into structured Notion pages with learning objectives, phases, and resources
+
 ## 🌟 Features
 
 ### Multi-Source Research
@@ -10,13 +57,13 @@ An AI-powered research assistant that helps you explore, analyze, and synthesize
 - **Web Search**: Intelligent web search with Tavily integration
 - **GitHub Integration**: Explore code repositories and documentation
 - **YouTube Analysis**: Extract insights from video transcripts
-- **Notion Export**: Generate structured study plans and export them directly to Notion
 
 ### Intelligent Agent System
 - **Orchestrated Multi-Agent Architecture**: Uses LangGraph to coordinate specialized agents
 - **Smart Query Routing**: Automatically selects the best agents for your research needs
 - **Citation Tracking**: Provides detailed source citations and references
 - **Context-Aware Responses**: Synthesizes information across multiple sources
+- **Notion Export**: Generate structured study plans and export them directly to Notion
 
 ### Advanced RAG Capabilities
 - **Semantic Chunking**: Intelligent document splitting for better context
@@ -215,26 +262,6 @@ The UI uses a modern dark theme with custom CSS. You can modify the styling in:
 - `research_copilot/ui/css.py` - Custom CSS variables and styles
 - `research_copilot/ui/gradio_app.py` - Gradio theme configuration
 
-## 🔧 Troubleshooting
-
-### Common Issues
-
-**ImportError: No module named 'research_copilot'**
-- Make sure you installed the package: `pip install -e .`
-- Activate your conda environment: `conda activate research311`
-
-**API Key Errors**
-- Check that all required API keys are set in `config.py` or environment variables
-- Verify API keys are valid and have sufficient credits
-
-**Qdrant Connection Issues**
-- The application uses an embedded Qdrant instance by default
-- Data is stored in `./qdrant_db/` and `./parent_store/`
-
-**Gradio Version Issues**
-- This project requires Gradio 6.x
-- If you have an older version: `pip install --upgrade gradio`
-
 ## 📦 Dependencies
 
 Key dependencies:
@@ -248,4 +275,37 @@ Key dependencies:
 - **markdown** - Markdown processing
 
 See `setup.py` for the complete list.
+
+## 🚧 Current Limitations & Future Roadmap
+
+### Known Limitations
+
+1. **No Persistent Database**
+   - All chat history and research results are stored in-memory on the web page
+   - Clearing the browser or restarting the application loses all session data
+   - **Planned**: Integration with PostgreSQL or SQLite for persistent storage of conversations, research sessions, and document metadata
+
+2. **No OAuth for Notion Integration**
+   - Current Notion integration requires manually configured API keys and parent page IDs
+   - All study plans are created under the same predefined parent page
+   - Users cannot connect their own Notion workspaces without author credentials
+   - **Planned**: Implement OAuth 2.0 flow to allow users to:
+     - Authenticate with their own Notion accounts
+     - Select their own parent pages dynamically
+     - Manage multiple workspace connections
+     - Store OAuth tokens securely in the database
+
+3. **Limited Multi-User Support**
+   - Application is designed for single-user local deployment
+   - No user authentication or session isolation
+   - **Planned**: Multi-tenant architecture with user accounts and isolated workspaces
+
+4. **No Research Session Management**
+   - Cannot save/load specific research sessions
+   - Cannot organize research by project or topic
+   - **Planned**: Session management UI with tagging, categorization, and search
+
+### Contributing
+
+We welcome contributions to address these limitations or add new features! Please check the issues page or open a new issue to discuss improvements.
 
