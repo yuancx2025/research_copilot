@@ -1,6 +1,55 @@
 from langchain_core.messages import HumanMessage
 from typing import Dict, List, Any, Tuple
 
+
+def _extract_text_from_content(content) -> str:
+    """
+    Extract plain text from LLM response content.
+    
+    Handles:
+    - Strings (returned as-is)
+    - Lists of content blocks from Gemini: [{'type': 'text', 'text': '...', 'extras': {...}}]
+    - Single dict content blocks
+    - Other types (converted via str())
+    
+    Args:
+        content: Content that may be string, list, or dict
+        
+    Returns:
+        Plain string content
+    """
+    if isinstance(content, str):
+        return content
+    elif isinstance(content, list):
+        # Handle list of content blocks (e.g., Google Gemini)
+        text_parts = []
+        for item in content:
+            if isinstance(item, dict):
+                # Extract 'text' field from content block dict
+                if 'text' in item:
+                    text_parts.append(item['text'])
+                elif 'content' in item:
+                    text_parts.append(item['content'])
+                else:
+                    # Skip malformed dicts
+                    pass
+            elif isinstance(item, str):
+                text_parts.append(item)
+            elif item is not None:
+                text_parts.append(str(item))
+        return " ".join(text_parts)
+    elif isinstance(content, dict):
+        # Handle single content block dict
+        if 'text' in content:
+            return content['text']
+        elif 'content' in content:
+            return content['content']
+        else:
+            return str(content)
+    else:
+        return str(content) if content else ""
+
+
 class ChatInterface:
     
     def __init__(self, rag_system):
@@ -25,8 +74,9 @@ class ChatInterface:
                 self.rag_system.get_config()
             )
             
-            # Extract answer
-            answer_text = result["messages"][-1].content if result.get("messages") else "No response generated."
+            # Extract answer (handle Gemini's structured content format)
+            raw_content = result["messages"][-1].content if result.get("messages") else "No response generated."
+            answer_text = _extract_text_from_content(raw_content)
             
             # Extract research artifacts
             citations = result.get("citations", [])
