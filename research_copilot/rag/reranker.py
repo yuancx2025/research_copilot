@@ -10,6 +10,43 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 import json
 from research_copilot.config import settings as config
+
+
+def _extract_text_from_content(content) -> str:
+    """
+    Extract plain text from LLM response content.
+    
+    Handles:
+    - Strings (returned as-is)
+    - Lists of content blocks from Gemini: [{'type': 'text', 'text': '...', 'extras': {...}}]
+    - Single dict content blocks
+    - Other types (converted via str())
+    """
+    if isinstance(content, str):
+        return content
+    elif isinstance(content, list):
+        text_parts = []
+        for item in content:
+            if isinstance(item, dict):
+                if 'text' in item:
+                    text_parts.append(item['text'])
+                elif 'content' in item:
+                    text_parts.append(item['content'])
+            elif isinstance(item, str):
+                text_parts.append(item)
+            elif item is not None:
+                text_parts.append(str(item))
+        return " ".join(text_parts)
+    elif isinstance(content, dict):
+        if 'text' in content:
+            return content['text']
+        elif 'content' in content:
+            return content['content']
+        return str(content)
+    else:
+        return str(content) if content else ""
+
+
 class Reranker:
     """
     LLM-based reranker optimized for multi-source content.
@@ -89,8 +126,9 @@ class Reranker:
                 HumanMessage(content=prompt)
             ])
             
-            # Parse response
-            scores = self._parse_scores(response.content, len(documents))
+            # Parse response (extract text content first to handle Gemini's format)
+            response_text = _extract_text_from_content(response.content)
+            scores = self._parse_scores(response_text, len(documents))
             return scores
         except Exception as e:
             print(f"Error scoring batch with LLM: {e}")
