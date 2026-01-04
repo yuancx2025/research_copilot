@@ -1,6 +1,6 @@
 # Step-by-Step GCP Deployment Guide
 
-This guide provides **copy-paste ready commands** to deploy Research Copilot to Google Cloud Platform using Cloud Build (no local Docker required).
+This guide provides commands to deploy Research Copilot to Google Cloud Platform using Cloud Build (no local Docker required).
 
 ## Prerequisites
 
