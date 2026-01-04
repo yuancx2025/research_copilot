@@ -11,18 +11,11 @@ logger = logging.getLogger(__name__)
 
 
 def is_notion_configured():
-    """Check if Notion is configured (either via MCP or Direct API)."""
-    # MCP mode: USE_NOTION_MCP=True and NOTION_MCP_COMMAND set
-    mcp_configured = (
-        getattr(config, 'USE_NOTION_MCP', False) and 
-        getattr(config, 'NOTION_MCP_COMMAND', None)
-    )
-    # Direct API mode: NOTION_API_KEY and NOTION_PARENT_PAGE_ID set
-    direct_api_configured = (
+    """Check if Notion is configured (Direct API only)."""
+    return (
         getattr(config, 'NOTION_API_KEY', None) and 
         getattr(config, 'NOTION_PARENT_PAGE_ID', None)
     )
-    return mcp_configured or direct_api_configured
 
 
 def create_gradio_ui():
@@ -136,7 +129,7 @@ def create_gradio_ui():
         
         
         if not is_notion_configured():
-            return "❌ Notion is not configured. Set either:\n- MCP mode: USE_NOTION_MCP=true and NOTION_MCP_COMMAND\n- Direct API mode: NOTION_API_KEY and NOTION_PARENT_PAGE_ID"
+            return "❌ Notion is not configured. Set NOTION_API_KEY and NOTION_PARENT_PAGE_ID in your environment variables."
         
         if not last_research_data or not last_query:
             return "❌ No research data available. Please perform a research query first."

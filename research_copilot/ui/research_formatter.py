@@ -97,14 +97,33 @@ def format_citations_markdown(citations: List[Dict[str, Any]]) -> str:
     
     Args:
         citations: List of citation dictionaries
-        
+    
     Returns:
         Markdown formatted string
     """
     if not citations:
         return "No citations available."
     
-    grouped = format_citations_by_source(citations)
+    # Filter out citations with non-human-readable titles (e.g., "Transcript: VIDEO_ID")
+    filtered_citations = []
+    for citation in citations:
+        title = citation.get("title", "").strip()
+        source_type = citation.get("source_type", "")
+        
+        # Skip YouTube citations with transcript IDs or video IDs as titles
+        if source_type == "youtube":
+            title_lower = title.lower()
+            # Skip if title is just "Transcript: VIDEO_ID" or just a video ID
+            if (title_lower.startswith("transcript:") or 
+                (len(title) <= 15 and title.replace("_", "").replace("-", "").isalnum())):
+                continue
+        
+        filtered_citations.append(citation)
+    
+    if not filtered_citations:
+        return "No citations available."
+    
+    grouped = format_citations_by_source(filtered_citations)
     
     markdown_parts = []
     
