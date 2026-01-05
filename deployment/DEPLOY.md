@@ -15,7 +15,7 @@ This guide provides commands to deploy Research Copilot to Google Cloud Platform
 
 ```bash
 # Replace with your actual project ID
-export PROJECT_ID="research-copilot-481820" 
+export PROJECT_ID="ai-frontier-482804" 
 export REGION="us-central1"
 export SERVICE_NAME="research-copilot"
 export REPO_NAME="research-copilot"
