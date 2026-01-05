@@ -64,16 +64,16 @@ steps:
         IMAGE_BASE="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}"
 
         echo "Building images:"
-        echo "  ${IMAGE_BASE}:${BUILD_ID}"
-        echo "  ${IMAGE_BASE}:latest"
+        echo "  $${IMAGE_BASE}:${BUILD_ID}"
+        echo "  $${IMAGE_BASE}:latest"
 
         # Pass HF_TOKEN to Docker build as build-arg.
         # Use $$HF_TOKEN so Cloud Build doesn't try to substitute it before runtime.
         docker build \
           -f deployment/Dockerfile.gcp \
           --build-arg HF_TOKEN="$$HF_TOKEN" \
-          -t "${IMAGE_BASE}:${BUILD_ID}" \
-          -t "${IMAGE_BASE}:latest" \
+          -t "$${IMAGE_BASE}:${BUILD_ID}" \
+          -t "$${IMAGE_BASE}:latest" \
           .
 
   # Push the image to Artifact Registry (BUILD_ID tag)
