@@ -14,7 +14,7 @@ class ArxivToolkit(BaseToolkit):
     
     def __init__(self, config):
         self.config = config
-        self.max_results = getattr(config, 'MAX_ARXIV_RESULTS', 10)
+        self.max_results = getattr(config, 'MAX_ARXIV_RESULTS', 5)  # Reduced default from 10 to 5
     
     def is_available(self) -> bool:
         """ArXiv API is free and always available."""
@@ -23,7 +23,7 @@ class ArxivToolkit(BaseToolkit):
     def _search_arxiv(
         self, 
         query: str, 
-        max_results: int = 10,
+        max_results: int = 5,
         sort_by: str = "relevance"
     ) -> List[Dict]:
         """
@@ -38,7 +38,7 @@ class ArxivToolkit(BaseToolkit):
         Args:
             query: Search query - supports ArXiv syntax like 'cat:cs.AI' for categories,
                    'au:lastname' for authors, or natural language
-            max_results: Maximum papers to return (default: 10)
+            max_results: Maximum papers to return (default: 5, recommended: 3-5 for focused results)
             sort_by: How to sort results. 
                 - "relevance" (default): Best for general topic searches
                 - "lastUpdatedDate": Best for finding recently updated papers

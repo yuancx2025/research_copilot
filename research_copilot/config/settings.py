@@ -58,6 +58,10 @@ except ImportError:
     # --- Research Cache Configuration ---
     ENABLE_RESEARCH_CACHE = os.getenv("ENABLE_RESEARCH_CACHE", "true").lower() == "true"
     
+    # --- Tool-Specific Configuration ---
+    MAX_ARXIV_RESULTS = int(os.getenv("MAX_ARXIV_RESULTS", "10"))
+    MAX_CITATIONS_PER_AGENT = int(os.getenv("MAX_CITATIONS_PER_AGENT", "10"))
+    
     # --- MCP Server Configuration ---
     USE_GITHUB_MCP = os.getenv("USE_GITHUB_MCP", "false").lower() == "true"
     USE_WEB_SEARCH_MCP = os.getenv("USE_WEB_SEARCH_MCP", "false").lower() == "true"

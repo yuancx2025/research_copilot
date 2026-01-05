@@ -23,6 +23,9 @@ logger = logging.getLogger(__name__)
 # Maximum number of tool calls allowed per agent execution
 MAX_TOOL_CALLS_PER_AGENT = 10
 
+# Maximum number of citations to extract per agent (prevents citation explosion)
+MAX_TOTAL_CITATIONS_PER_AGENT = 10
+
 
 def should_continue_with_limit(state: AgentState) -> Literal["tools", "extract_answer"]:
     """
@@ -197,6 +200,7 @@ class BaseAgent(ABC):
         # Handle lists in one place: iterate through list items (up to cap of 10)
         MAX_CITATIONS_PER_TOOL_RESULT = 10
         seen_keys = set()  # For deduplication
+        total_citations_added = 0  # Track total citations to enforce global limit
         
         for msg in messages:
             if isinstance(msg, ToolMessage):
@@ -216,6 +220,14 @@ class BaseAgent(ABC):
                     # Handle lists: iterate through items (up to cap)
                     if isinstance(tool_result, list):
                         for item in tool_result[:MAX_CITATIONS_PER_TOOL_RESULT]:
+                            # Stop if we've hit the total citation limit
+                            if total_citations_added >= MAX_TOTAL_CITATIONS_PER_AGENT:
+                                logger.info(
+                                    f"Reached maximum citation limit ({MAX_TOTAL_CITATIONS_PER_AGENT}) "
+                                    f"for {self.source_type.value} agent. Stopping citation extraction."
+                                )
+                                break
+                            
                             try:
                                 citation = self.parse_citation(
                                     tool_call_info["name"],
@@ -228,6 +240,7 @@ class BaseAgent(ABC):
                                     if dedup_key and dedup_key not in seen_keys:
                                         seen_keys.add(dedup_key)
                                         citations.append(citation)
+                                        total_citations_added += 1
                             except Exception as e:
                                 logger.warning(
                                     f"Failed to parse citation from {tool_call_info['name']}: {e}. "
@@ -236,22 +249,30 @@ class BaseAgent(ABC):
                                 continue
                     else:
                         # Handle single item (dict, string, or other)
-                        try:
-                            citation = self.parse_citation(
-                                tool_call_info["name"],
-                                tool_call_info["args"],
-                                tool_result
+                        # Stop if we've hit the total citation limit
+                        if total_citations_added >= MAX_TOTAL_CITATIONS_PER_AGENT:
+                            logger.info(
+                                f"Reached maximum citation limit ({MAX_TOTAL_CITATIONS_PER_AGENT}) "
+                                f"for {self.source_type.value} agent."
                             )
-                            if citation:
-                                # Deduplicate using stable key
-                                dedup_key = citation.get_deduplication_key()
-                                if dedup_key and dedup_key not in seen_keys:
-                                    seen_keys.add(dedup_key)
-                                    citations.append(citation)
-                        except Exception as e:
-                            logger.warning(
-                                f"Failed to parse citation from {tool_call_info['name']}: {e}. "
-                                "Skipping this citation."
+                        else:
+                            try:
+                                citation = self.parse_citation(
+                                    tool_call_info["name"],
+                                    tool_call_info["args"],
+                                    tool_result
+                                )
+                                if citation:
+                                    # Deduplicate using stable key
+                                    dedup_key = citation.get_deduplication_key()
+                                    if dedup_key and dedup_key not in seen_keys:
+                                        seen_keys.add(dedup_key)
+                                        citations.append(citation)
+                                        total_citations_added += 1
+                            except Exception as e:
+                                logger.warning(
+                                    f"Failed to parse citation from {tool_call_info['name']}: {e}. "
+                                    "Skipping this citation."
                             )
         
         # Convert Pydantic models to dicts for backward compatibility
