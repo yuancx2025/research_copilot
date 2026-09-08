@@ -37,3 +37,11 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+# Local verification environment and runtime state
+.venv-mcp/
+*.sqlite3
+
+# Local notes and planning docs (keep README and deployment docs tracked)
+*.md
+!README.md
+!deployment/**/*.md
