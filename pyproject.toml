@@ -25,12 +25,12 @@ classifiers = [
 ]
 
 dependencies = [
-    # Core LangChain dependencies
-    "langchain>=0.1.0",
-    "langchain-core>=0.1.0",
+    # Core LangChain dependencies (Python 3.11 compatibility baseline)
+    "langchain==1.2.0",
+    "langchain-core==1.2.6",
     "langchain-community>=0.0.20",
     "langchain-openai>=0.0.5",
-    "langgraph>=0.2.0",
+    "langgraph==1.0.5",
     
     # LLM Provider integrations
     "langchain-google-genai>=1.0.0",
@@ -65,12 +65,17 @@ dependencies = [
     # RAG & Retrieval
     "rank-bm25>=0.2.2",
     
-    # MCP (Model Context Protocol)
-    "mcp>=0.1.0",
-    "langchain-mcp-adapters>=0.2.0",
+    # MCP (Model Context Protocol) — Python 3.11 baseline; keep below v2
+    "mcp==1.25.0",
+    "langchain-mcp-adapters==0.2.1",
+    "httpx==0.28.1",
+    "fastapi==0.128.0",
+    "uvicorn==0.40.0",
+    "keyring==25.7.0",
+    "itsdangerous==2.2.0",
     
     # UI & Configuration
-    "gradio>=4.0.0",
+    "gradio==6.2.0",
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
     "python-dotenv>=1.0.0",
@@ -118,6 +123,9 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --cov=research_copilot --cov-report=html --cov-report=term"
+markers = [
+    "live: opt-in live Notion smoke test; requires NOTION_LIVE_TEST=1 and a connected workspace",
+]
 
 [tool.black]
 line-length = 100

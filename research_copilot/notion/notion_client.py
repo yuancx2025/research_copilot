@@ -176,6 +176,8 @@ def create_page(
                         append_result = append_blocks(page_id, chunk, notion_api_key)
                         if append_result.get("error"):
                             logger.error(f"Failed to append block chunk {i//MAX_BLOCKS_PER_REQUEST + 1}: {append_result.get('error')}")
+                            return {'error': 'Page created, but remaining blocks could not be appended.',
+                                    'page_id': page_id, 'url': page_url, 'partial': True}
                 
                 logger.info(f"Notion page created successfully: {page_id} -> {page_url}")
                 
@@ -229,4 +231,3 @@ def create_page(
     except Exception as e:
         logger.error(f"Unexpected error creating Notion page: {e}", exc_info=True)
         return {"error": f"Unexpected error: {str(e)}"}
-

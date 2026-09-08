@@ -1,8 +1,10 @@
-# 🔬 Research Copilot
+# Research Copilot
 
-An AI-powered research assistant that helps you explore, analyze, and synthesize information from multiple sources including local documents, academic papers, web content, GitHub repositories, and YouTube videos.
+A local, single-user research assistant that searches local documents, academic papers, the web, GitHub, YouTube, and a connected Notion workspace. After research, you can preview a study plan and export that exact draft to a Notion page you choose.
 
-## 🏗️ System Architecture
+This release is a Gradio application mounted under FastAPI at `/ui`. Notion OAuth binds to `127.0.0.1` only.
+
+## Architecture
 
 ```mermaid
 flowchart TD
@@ -21,301 +23,163 @@ flowchart TD
     Router -->|GitHub| GitHubAgent[GitHub Agent]
     Router -->|Web| WebAgent[Web Agent]
     Router -->|Local Docs| LocalAgent[Local RAG Agent]
+    Router -->|Notion notes| NotionAgent[Notion Agent]
 
     ArXivAgent --> Aggregate[Aggregate Results]
     YouTubeAgent --> Aggregate
     GitHubAgent --> Aggregate
     WebAgent --> Aggregate
     LocalAgent --> Aggregate
+    NotionAgent --> Aggregate
 
-    Aggregate --> NotionCheck{Create Study Plan}
-
-    NotionCheck -->|Yes| NotionService[Notion Service]
-    NotionCheck -->|No| End[Return Response]
-
-    NotionService --> End
+    Aggregate --> End[Return Response]
+    End --> Preview[Preview Study Plan]
+    Preview --> Export[Export displayed draft]
 
     style ClassifyIntent fill:#4a9eff,stroke:#2d5f9f,color:#ffffff
     style Router fill:#ff6b6b,stroke:#c92a2a,color:#ffffff
     style Aggregate fill:#51cf66,stroke:#2f9e44,color:#ffffff
-    style NotionService fill:#9775fa,stroke:#6741d9,color:#ffffff
+    style NotionAgent fill:#9775fa,stroke:#6741d9,color:#ffffff
+    style Export fill:#9775fa,stroke:#6741d9,color:#ffffff
 ```
 
-**Key Architecture Features:**
-- **LLM-Powered Intent Classification**: Analyzes user queries to determine which specialized agents to invoke (ArXiv for papers, GitHub for code, YouTube for videos, etc.)
-- **Parallel Agent Execution**: Uses LangGraph's `Send` objects to execute multiple agents simultaneously, reducing latency
-- **Smart Query Rewriting**: Breaks down complex queries into optimized sub-queries for each agent
-- **Citation Tracking**: Each agent collects sources with metadata (title, URL, snippet, source type) that flow through the pipeline
-- **Dynamic Aggregation**: LLM synthesizes responses from multiple agents into a coherent answer with proper citations
-- **Optional Study Plan Generation**: Results can be transformed into structured Notion pages with learning objectives, phases, and resources
+**How a request runs**
+- The orchestrator classifies intent against **currently available sources**. Notion is offered only while a workspace connection is active.
+- Specialized agents run in parallel. Notion research tools are read-only search and fetch.
+- Citations from Notion require a fetched page (title, URL, and content). Search hits alone are not treated as evidence.
+- Study-plan publishing is not part of the research graph. Preview generates a draft; Export publishes the displayed Markdown without generating again.
 
-## 🌟 Features
+**Layout**
+```
+research_copilot/
+├── agents/          # Source agents, including Notion
+├── orchestrator/    # LangGraph routing, intent, aggregation
+├── core/            # RAG, chat interface, document management
+├── rag/             # Chunking, retrieval, reranking
+├── storage/         # Qdrant, parent store, Keychain OAuth, export ledger
+├── tools/           # Toolkits, registry, MCP client/adapter/OAuth
+├── notion/          # Draft generation, REST publish, MCP publish, Markdown renderer
+├── ui/              # Gradio UI
+├── config/          # Shared local/GCP settings, including MCP
+└── app/             # FastAPI factory, OAuth callback routes
+```
 
-### Multi-Source Research
-- **Local RAG (Retrieval-Augmented Generation)**: Upload and query your own PDF and Markdown documents
-- **ArXiv Integration**: Search and analyze academic papers
-- **Web Search**: Intelligent web search with Tavily integration
-- **GitHub Integration**: Explore code repositories and documentation
-- **YouTube Analysis**: Extract insights from video transcripts
+## Features
 
-### Intelligent Agent System
-- **Orchestrated Multi-Agent Architecture**: Uses LangGraph to coordinate specialized agents
-- **Smart Query Routing**: Automatically selects the best agents for your research needs
-- **Citation Tracking**: Provides detailed source citations and references
-- **Context-Aware Responses**: Synthesizes information across multiple sources
-- **Notion Export**: Generate structured study plans and export them directly to Notion
+- **Local RAG**: upload PDF and Markdown files and query them
+- **ArXiv, web, GitHub, YouTube**: specialized research agents
+- **Notion research**: search and fetch notes from one OAuth-connected workspace
+- **Preview then export**: generate a study plan, inspect the Markdown, choose a destination page, then publish
+- **Local OAuth**: Connect/Disconnect in the Research tab; tokens live in macOS Keychain
 
-### Advanced RAG Capabilities
-- **Semantic Chunking**: Intelligent document splitting for better context
-- **Parent-Child Document Storage**: Retrieves context while maintaining precision
-- **LLM-based Reranking**: Ensures the most relevant results
-- **Vector Database**: Powered by Qdrant for efficient similarity search
-
-## 🚀 Quick Start
+## Quick start
 
 ### Prerequisites
 
-- **Python**: 3.11+ (tested with Python 3.11)
-- **Conda**: Recommended for environment management
-- **API Keys**: You'll need API keys for various services (see Configuration section)
+- Python 3.11 (compatibility baseline for this MCP stack)
+- macOS Keychain if you use Notion MCP OAuth
+- API keys for the LLM and any non-Notion sources you enable
 
 ### Installation
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/yourusername/research-copilot.git
-   cd research-copilot
-   ```
+`pyproject.toml` pins the tested Python 3.11 baseline: MCP 1.25.0, `langchain-mcp-adapters` 0.2.1, LangChain 1.2.0, LangChain Core 1.2.6, and LangGraph 1.0.5. Keep MCP below v2.
 
-2. **Create and activate a conda environment**:
-   ```bash
-   conda create -n research311 python=3.11 -y
-   conda activate research311
-   ```
+```bash
+conda create -n research311 python=3.11 -y
+conda activate research311
+pip install -e ".[test]"
+```
 
-3. **Install the package**:
-   ```bash
-   pip install -e .
-   ```
-   
-   This will install all required dependencies including:
-   - LangChain and LangGraph for agent orchestration
-   - Qdrant for vector storage
-   - Google Gemini, OpenAI, and Ollama LLM integrations
-   - Tavily for web search
-   - ArXiv, YouTube, and GitHub API clients
-   - Gradio for the UI
-   - MCP (Model Context Protocol) support
-   - And many more (see `pyproject.toml`)
-   
-   **Optional: Install GCP deployment dependencies** (if deploying to Google Cloud):
-   ```bash
-   pip install -e ".[gcp]"
-   ```
+Optional GCP extras:
+
+```bash
+pip install -e ".[gcp,test]"
+```
 
 ### Configuration
 
-Create a `.env` file in the root directory or set environment variables for your API keys:
+Create a `.env` file:
 
 ```bash
-# Google Gemini (recommended for main LLM)
+# LLM
 GOOGLE_API_KEY=your-google-gemini-api-key
+LLM_PROVIDER=google
+LLM_MODEL=gemini-2.5-flash
 
-# Tavily (for web search)
+# Other research sources
 TAVILY_API_KEY=your-tavily-api-key
-
-# GitHub (for GitHub agent)
 GITHUB_TOKEN=your-github-token
 
-# Notion Integration (for study plan export)
-NOTION_API_KEY=your-notion-integration-token
-NOTION_PARENT_PAGE_ID=your-parent-page-uuid
+# Notion: mcp (OAuth research + export), rest (legacy token export), or disabled
+NOTION_BACKEND=mcp
+OAUTH_BASE_URL=http://127.0.0.1:7860
+
+# REST compatibility mode only (never used as an OAuth fallback)
+# NOTION_BACKEND=rest
+# NOTION_API_KEY=your-notion-integration-token
+# NOTION_PARENT_PAGE_ID=your-parent-page-uuid
+
+# Optional GitHub/web MCP stdio servers
+# USE_GITHUB_MCP=true
+# GITHUB_MCP_COMMAND=npx,-y,@modelcontextprotocol/server-github
+# USE_WEB_SEARCH_MCP=false
 ```
 
-#### Notion API Setup
+`OAUTH_BASE_URL` must be `http://127.0.0.1:<port>` with no path. Gradio sharing and hosted multi-user OAuth are out of scope for this release.
 
-Research Copilot uses **direct Notion API calls** to create study plan pages. To set up Notion integration:
+### Launch
 
-1. **Create a Notion Integration**:
-   - Go to [Notion Developers](https://developers.notion.com/)
-   - Click "New integration"
-   - Give it a name (e.g., "Research Copilot")
-   - Select the workspace where you want to create pages
-   - Copy the "Internal Integration Token" → this is your `NOTION_API_KEY`
-
-2. **Get Your Parent Page ID**:
-   - Open the Notion page where you want study plans to be created
-   - Click "Share" → "Copy link"
-   - The URL format is: `https://www.notion.so/PageName-<UUID>`
-   - Extract the UUID (32 hex characters after the last dash) → this is your `NOTION_PARENT_PAGE_ID`
-
-3. **Share the Page with Your Integration**:
-   - Open your parent page in Notion
-   - Click "..." (menu) → "Add connections"
-   - Search for and select your integration
-   - This grants the integration permission to create child pages
-
-#### MCP Server Configuration (Optional)
-
-Research Copilot supports **local MCP servers** via stdio (standard input/output) protocol for enhanced tool capabilities. This is the recommended approach as it provides better reliability and lower latency compared to remote servers.
+Both entrypoints use the same FastAPI application factory:
 
 ```bash
-# Enable MCP servers (optional - defaults to direct API calls)
-USE_GITHUB_MCP=true
-USE_WEB_SEARCH_MCP=false
-USE_NOTION_MCP=false
-
-# Local MCP server commands (stdio transport)
-# GitHub MCP: Uses npx to spawn the official MCP server
-GITHUB_MCP_COMMAND=npx,-y,@modelcontextprotocol/server-github
-
-# Web Search MCP (if using MCP instead of direct Tavily API)
-WEB_SEARCH_MCP_COMMAND=python,-m,research_copilot.tools.mcp.web_search_mcp
-
-# Notion MCP (if using MCP instead of direct API)
-NOTION_MCP_COMMAND=npx,-y,@modelcontextprotocol/server-notion
-```
-
-**How Local MCP Works**:
-- MCP servers are spawned as child processes
-- Communication happens via stdin/stdout (stdio transport)
-- No network overhead - everything runs locally
-- The adapter (`research_copilot/tools/mcp/adapter.py`) handles connection lifecycle
-
-**When to Use MCP vs Direct API**:
-- **Direct API** (default): Simpler setup, fewer dependencies, recommended for most users
-- **MCP Server**: Use when you need advanced features from official MCP servers or want to integrate with the broader MCP ecosystem
-
-### Launch the Application
-
-```bash
-# Activate your conda environment
-conda activate research311
-
-# Run the application
 python -m research_copilot.app.main
+# or
+python app.py
 ```
 
-Or alternatively:
-```bash
-python research_copilot/app/main.py
-```
+Open `http://127.0.0.1:7860/ui`.
 
-The application will launch at `http://127.0.0.1:7860` 🎉
+## Using Notion
 
-## 📖 Usage
+1. Set `NOTION_BACKEND=mcp` and start the app on `127.0.0.1`.
+2. In the Research tab, click **Connect Notion** and complete consent in the browser.
+3. Restarting the app reuses Keychain credentials while the grant remains valid. You should not see another consent screen until access expires or you disconnect.
+4. Ask a question that needs your notes (for example, “what did I write about MCP in Notion”). Ordinary research still works while disconnected.
+5. After citations exist, click **Preview Study Plan**, search or paste a destination page, then **Export displayed plan**.
+6. **Disconnect** stops new calls and deletes the local Keychain record. That does not revoke the grant in Notion; revoke access in Notion settings if you want the provider-side authorization removed.
 
-### 1. Documents Tab 📄
-- Upload PDF or Markdown files to your knowledge base
-- View all indexed documents
-- Clear or refresh your document collection
+OAuth failures never fall back to `NOTION_API_KEY`. REST export remains an explicit `NOTION_BACKEND=rest` compatibility mode that still uses the block renderer.
 
-### 2. Chat Tab 💬
-- Ask questions about your uploaded documents
-- Get AI-powered answers with source citations
-- Interactive chat interface with message history
-
-### 3. Research Tab 🔬
-- Perform multi-source research queries
-- Automatically searches across:
-  - Your local documents
-  - ArXiv papers
-  - Web content
-  - GitHub repositories
-  - YouTube videos
-- View detailed citations and source summaries
-
-## 🏗️ Architecture
-
-```
-research_copilot/
-├── agents/          # Specialized agents (RAG, ArXiv, Web, GitHub, YouTube)
-├── orchestrator/    # LangGraph orchestration layer
-├── core/           # Core systems (RAG, document management, chat)
-├── rag/            # RAG components (chunking, retrieval, reranking)
-├── storage/        # Database managers (Qdrant, cache, parent store)
-├── tools/          # Agent tools and registry
-├── ui/             # Gradio interface and CSS
-├── config/         # Configuration management
-└── app/            # Application entry point
-```
-
-## 🛠️ Development
-
-### Project Structure
-
-The project follows a modular architecture:
-
-- **Agents**: Each agent (`local_rag_agent.py`, `arxiv_agent.py`, etc.) specializes in a specific data source
-- **Orchestrator**: Uses LangGraph to route queries and coordinate agents
-- **RAG System**: Advanced retrieval with parent-child chunking and reranking
-- **Storage**: Qdrant vector DB with parent document store and research cache
-
-### Running Tests
+## Tests
 
 ```bash
+pip install -e ".[test]"
 pytest tests/
 ```
 
-### Adding New Agents
+Stdio MCP tests use `tests/mcp/fixture_server.py`. OAuth and HTTP callback tests use mocked responses.
 
-1. Create a new agent in `agents/` inheriting from `BaseAgent`
-2. Implement the required methods
-3. Register the agent in `tools/registry.py`
-4. Update the orchestrator to include the new agent
+Opt-in live Notion smoke test (reads a page you choose; exports only with a second flag):
 
-## 🎨 UI Customization
+```bash
+# After connecting in the UI:
+NOTION_LIVE_TEST=1 NOTION_LIVE_PAGE_ID=<page-id-or-url> pytest tests/notion/test_live_smoke.py -m live
 
-The UI uses a modern dark theme with custom CSS. You can modify the styling in:
-- `research_copilot/ui/css.py` - Custom CSS variables and styles
-- `research_copilot/ui/gradio_app.py` - Gradio theme configuration
+# Create a page only after you explicitly opt in:
+NOTION_LIVE_TEST=1 NOTION_LIVE_EXPORT=1 NOTION_LIVE_PAGE_ID=<page-id> \
+  NOTION_LIVE_PARENT_PAGE_ID=<destination-page-id> pytest tests/notion/test_live_smoke.py -m live
+```
 
-## 📦 Dependencies
+Record live verification separately from automated results. The live test does not disconnect your Keychain credentials.
 
-Key dependencies:
-- **langchain & langgraph** - LLM application framework and agent orchestration
-- **qdrant-client** - Vector database for semantic search
-- **langchain-google-genai** - Google Gemini integration (recommended)
-- **langchain-tavily** - Web search integration
-- **gradio** - Web UI framework
-- **arxiv, youtube-transcript-api, PyGithub** - Source-specific API clients
-- **pymupdf, pypdf** - PDF processing
-- **sentence-transformers, fastembed** - Embedding models
-- **mcp, langchain-mcp-adapters** - Model Context Protocol support
-- **pydantic, python-dotenv** - Configuration management
+## Known limitations
 
-See `pyproject.toml` for the complete list.
-
-## 🚧 Current Limitations & Future Roadmap
-
-### Known Limitations
-
-1. **No Persistent Database**
-   - All chat history and research results are stored in-memory on the web page
-   - Clearing the browser or restarting the application loses all session data
-   - **Planned**: Integration with PostgreSQL or SQLite for persistent storage of conversations, research sessions, and document metadata
-
-2. **No OAuth for Notion Integration**
-   - Current Notion integration requires manually configured API keys and parent page IDs
-   - All study plans are created under the same predefined parent page
-   - Users cannot connect their own Notion workspaces without author credentials
-   - **Planned**: Implement OAuth 2.0 flow to allow users to:
-     - Authenticate with their own Notion accounts
-     - Select their own parent pages dynamically
-     - Manage multiple workspace connections
-     - Store OAuth tokens securely in the database
-
-3. **Limited Multi-User Support**
-   - Application is designed for single-user local deployment
-   - No user authentication or session isolation
-   - **Planned**: Multi-tenant architecture with user accounts and isolated workspaces
-
-4. **No Research Session Management**
-   - Cannot save/load specific research sessions
-   - Cannot organize research by project or topic
-   - **Planned**: Session management UI with tagging, categorization, and search
-
-### Contributing
-
-We welcome contributions to address these limitations or add new features! Please check the issues page or open a new issue to discuss improvements.
-
+- One local profile and one active Notion workspace connection
+- OAuth is loopback-only (`127.0.0.1`); no Gradio share and no hosted multi-user OAuth
+- macOS Keychain is required for OAuth; there is no plaintext credential fallback
+- Notion research is read-only; page creation is the Export button
+- Export is not exactly-once across network failures. A timeout after dispatch is recorded as unknown and is not retried automatically. Inspect Notion before creating another page.
+- Local disconnect does not revoke the Notion grant
+- Persistent Notion research caching is disabled; connection-dependent in-memory results are cleared on disconnect or workspace change
+- Chat history remains in-memory for the browser session
+- Dynamic subagent spawning, general workspace editing, shared database storage, distributed refresh, cloud deployment, and a newer MCP stack are follow-up work

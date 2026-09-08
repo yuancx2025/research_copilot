@@ -62,23 +62,8 @@ except ImportError:
     MAX_ARXIV_RESULTS = int(os.getenv("MAX_ARXIV_RESULTS", "10"))
     MAX_CITATIONS_PER_AGENT = int(os.getenv("MAX_CITATIONS_PER_AGENT", "10"))
     
-    # --- MCP Server Configuration ---
-    USE_GITHUB_MCP = os.getenv("USE_GITHUB_MCP", "false").lower() == "true"
-    USE_WEB_SEARCH_MCP = os.getenv("USE_WEB_SEARCH_MCP", "false").lower() == "true"
-    
-    # MCP server commands (local stdio transport)
-    # GitHub MCP: default to npx-based server
-    _github_mcp_cmd = os.getenv("GITHUB_MCP_COMMAND", "npx,-y,@modelcontextprotocol/server-github")
-    GITHUB_MCP_COMMAND = _github_mcp_cmd.split(",") if isinstance(_github_mcp_cmd, str) else _github_mcp_cmd
-    _github_mcp_args = os.getenv("GITHUB_MCP_ARGS", "")
-    GITHUB_MCP_ARGS = _github_mcp_args.split(",") if _github_mcp_args else []
-    
-    # Web Search MCP: default to Python-based server (custom implementation)
-    _web_mcp_cmd = os.getenv("WEB_SEARCH_MCP_COMMAND", "")
-    WEB_SEARCH_MCP_COMMAND = _web_mcp_cmd.split(",") if _web_mcp_cmd else None  # None means use direct API
-    _web_mcp_args = os.getenv("WEB_SEARCH_MCP_ARGS", "")
-    WEB_SEARCH_MCP_ARGS = _web_mcp_args.split(",") if _web_mcp_args else []
-    
+    from .mcp_settings import *
+
     # Notion Configuration (Direct API only)
     NOTION_PARENT_PAGE_ID = os.getenv("NOTION_PARENT_PAGE_ID")
     

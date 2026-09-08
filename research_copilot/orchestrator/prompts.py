@@ -90,7 +90,7 @@ Retry rule:
 If no relevant information is found after the retry, say so.
 """
 
-def get_intent_classification_prompt(query: str, conversation_summary: str = "") -> str:
+def get_intent_classification_prompt(query: str, conversation_summary: str = "", available_sources=None) -> str:
     """
     Prompt to guide LLM in selecting appropriate agents for a query.
     
@@ -104,11 +104,24 @@ def get_intent_classification_prompt(query: str, conversation_summary: str = "")
         if conversation_summary.strip()
         else ""
     )
+    sources = list(available_sources or ["arxiv", "youtube", "github", "web", "local"])
+    notion_section = ""
+    if "notion" in sources:
+        notion_section = """
+6. **notion** - Personal notes in the connected Notion workspace
+   - Use for: workspace notes, meeting notes, wikis, and pages the user already stored in Notion
+   - Examples: "what did I write about transformers in Notion", "search my workspace notes"
+   - Include notion together with other agents when the query needs both personal notes and public sources
+   - Do not use Notion for public web search or academic papers
+"""
     
     return f"""
 You are an intelligent research orchestrator that routes queries to specialized agents.
 
 Your task is to analyze the user's query and determine which specialized agents should handle it.
+
+You may ONLY select agents from this available list: {", ".join(sources)}
+Never select an agent that is not in that list.
 
 Available Agents:
 
@@ -138,17 +151,18 @@ Available Agents:
    - Use for: Queries about documents already in the knowledge base
    - Examples: Queries about previously uploaded documents
    - Best for: When user asks about local documents or when other agents might find relevant local content
-
+{notion_section}
 Query to analyze:
 "{query}"
 
 {context_section}Analysis Guidelines:
 
-- **CRITICAL for time-based queries**: If query mentions "current", "recent", "latest", "updates", "2024", "2025", or similar time references, ALWAYS include both ["arxiv", "web"] to get the most up-to-date information
+- **CRITICAL for time-based queries**: If query mentions "current", "recent", "latest", "updates", "2024", "2025", or similar time references, ALWAYS include both ["arxiv", "web"] when those agents are available
 - **Select multiple agents** when the query spans multiple domains (e.g., "transformer papers and implementations" → ["arxiv", "github"])
-- **Prioritize specificity**: If query mentions "papers" → prioritize arxiv; "code" → prioritize github; "tutorial" → prioritize youtube
+- **Prioritize specificity**: If query mentions "papers" → prioritize arxiv; "code" → prioritize github; "tutorial" → prioritize youtube; Notion notes/workspace → include notion
 - **Include 'web'** for comprehensive coverage when query is broad or needs current information
 - **Include 'local'** when query might benefit from previously indexed documents
+- **Include 'notion'** when the query asks about the user's notes, workspace pages, or personal Notion content, and notion is available
 - **Confidence scoring**: Higher confidence (0.8-1.0) when query clearly matches agent capabilities; lower (0.5-0.7) when ambiguous
 
 Query-to-Agent Mapping Examples:
@@ -161,6 +175,8 @@ Query-to-Agent Mapping Examples:
 - "transformer neural networks" → ["arxiv", "web"] (academic + comprehensive)
 - "attention mechanism code" → ["github", "web"] (code-focused)
 - "explain transformers tutorial" → ["youtube", "web"] (learning-focused)
+- "what did I write about MCP in Notion" → ["notion"]
+- "compare arxiv papers on MCP with my Notion notes" → ["arxiv", "notion"]
 
 Output Requirements:
 
@@ -169,7 +185,7 @@ Output Requirements:
 - Assign a confidence score between 0.0 and 1.0
 - Optionally suggest query refinements for specific agents if needed
 
-Remember: It's better to select multiple relevant agents than to miss important sources of information. For queries about "current" or "recent" information, ALWAYS include both arxiv and web agents.
+Remember: It's better to select multiple relevant agents than to miss important sources of information. For queries about "current" or "recent" information, ALWAYS include both arxiv and web agents when they are available.
 """
 
 

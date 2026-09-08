@@ -13,9 +13,9 @@ class WebAgent(BaseAgent):
     Specialized in finding articles, tutorials, documentation, and web content.
     """
     
-    def __init__(self, llm: BaseChatModel, config):
-        toolkit = WebToolkit(config)
-        tools = toolkit.create_tools()
+    def __init__(self, llm: BaseChatModel, config, tools=None):
+        if tools is None:
+            tools = WebToolkit(config).create_tools()
         super().__init__(SourceType.WEB, llm, tools)
     
     def get_system_prompt(self) -> str:
@@ -43,4 +43,3 @@ class WebAgent(BaseAgent):
                 return WebCitation.from_tool_result(tool_result, self.source_type)
         
         return None
-

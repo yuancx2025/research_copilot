@@ -86,6 +86,11 @@ class RAGSystem:
         
         # Create LLM instance using the helper function
         llm = create_llm()
+        self.llm = llm
+        self.collection = collection
+        self.notion_service = None
+        self._graph_generation = None
+        self._mcp_prepared = False
         
         # Initialize LLM for reranking if enabled
         if config.ENABLE_RERANKING:
@@ -133,8 +138,29 @@ class RAGSystem:
         # Pass research cache if available
         self.agent_graph = create_agent_graph(llm, config, collection, research_cache=self.research_cache)
     
+    async def prepare_run(self, notion_service=None):
+        """Initialize tools and rebuild only when the connection generation changes."""
+        if not self._mcp_prepared:
+            await self.tool_registry.initialize_mcp()
+        generation = notion_service.connection.generation if notion_service and notion_service.connection.connected else None
+        if generation:
+            try:
+                await notion_service.prepare()
+            except Exception:
+                # Notion outages must not disable unrelated sources; explicit Notion
+                # requests are rejected by ChatInterface when no Notion agent is ready.
+                generation = None
+        if not self._mcp_prepared or generation != self._graph_generation:
+            self.agent_graph = create_agent_graph(self.llm, config, self.collection,
+                research_cache=self.research_cache, tool_registry=self.tool_registry,
+                notion_service=notion_service if generation else None)
+            self.thread_id = str(uuid.uuid4())
+            self._graph_generation = generation
+            self._mcp_prepared = True
+        self.notion_service = notion_service
+
     def get_config(self):
-        return {"configurable": {"thread_id": self.thread_id}}
+        return {"configurable": {"thread_id": self.thread_id}, "recursion_limit": 50}
     
     def reset_thread(self):
         try:

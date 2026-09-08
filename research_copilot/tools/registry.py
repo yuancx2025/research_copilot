@@ -29,49 +29,22 @@ class ToolRegistry:
     def register(self, toolkit: BaseToolkit) -> None:
         """Register a toolkit and initialize MCP if needed."""
         if toolkit.is_available():
-            # Initialize MCP tools if toolkit uses MCP
-            if hasattr(toolkit, 'use_mcp') and toolkit.use_mcp:
-                self._initialize_mcp_tools(toolkit)
-            
             self._toolkits[toolkit.source_type] = toolkit
             self._tools_cache = None  # Invalidate cache
             logger.info(f"Registered toolkit: {toolkit.source_type.value}")
         else:
             logger.warning(f"Toolkit {toolkit.source_type.value} not available (missing config?)")
     
-    def _initialize_mcp_tools(self, toolkit: BaseToolkit) -> None:
-        """Initialize MCP tools for a toolkit if it supports MCP."""
-        try:
-            # Check if toolkit has MCP initialization method
-            if hasattr(toolkit, '_ensure_mcp_initialized'):
-                # Try to initialize MCP synchronously
+    async def initialize_mcp(self):
+        """Prepare configured MCP tools on the application's event loop."""
+        for toolkit in self._toolkits.values():
+            if getattr(toolkit, 'use_mcp', False):
                 try:
-                    # Check if we're in an async context
-                    try:
-                        loop = asyncio.get_running_loop()
-                        # If we're in an async context, defer initialization
-                        logger.debug(
-                            f"MCP initialization for {toolkit.source_type.value} "
-                            "deferred (async context detected)"
-                        )
-                    except RuntimeError:
-                        # No running loop, safe to create one
-                        try:
-                            loop = asyncio.get_event_loop()
-                            if loop.is_closed():
-                                asyncio.run(toolkit._ensure_mcp_initialized())
-                            else:
-                                loop.run_until_complete(toolkit._ensure_mcp_initialized())
-                        except RuntimeError:
-                            asyncio.run(toolkit._ensure_mcp_initialized())
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to initialize MCP for {toolkit.source_type.value}: {e}. "
-                        "Will use direct API fallback."
-                    )
-        except Exception as e:
-            logger.warning(f"Error during MCP initialization for {toolkit.source_type.value}: {e}")
-    
+                    await toolkit._ensure_mcp_initialized()
+                except Exception:
+                    logger.warning("MCP unavailable for %s", toolkit.source_type.value)
+        self._tools_cache = None
+
     def get_toolkit(self, source_type: SourceType) -> Optional[BaseToolkit]:
         """Get a specific toolkit."""
         return self._toolkits.get(source_type)

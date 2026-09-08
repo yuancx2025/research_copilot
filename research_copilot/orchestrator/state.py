@@ -17,6 +17,7 @@ class State(MessagesState):
     
     # Phase 1: Multi-agent orchestration fields
     research_intent: List[str] = []  # Which agents to invoke (e.g., ["arxiv", "youtube"])
+    available_sources: List[str] = []
     agent_results: Dict[str, List[dict]] = {}  # Results from each specialized agent
     citations: Annotated[List[dict], accumulate_or_reset] = []  # Unified citation tracking
     research_session_id: str = ""  # Session tracking
@@ -40,6 +41,7 @@ class State(MessagesState):
 class AgentState(MessagesState):
     """State for individual agent subgraph"""
     question: str = ""
+    tool_calls_used: int = 0
     question_index: int = 0
     final_answer: str = ""
     agent_answers: List[dict] = []

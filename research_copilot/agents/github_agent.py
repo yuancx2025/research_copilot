@@ -13,9 +13,9 @@ class GitHubAgent(BaseAgent):
     Specialized in code analysis, repository exploration, and technical documentation.
     """
     
-    def __init__(self, llm: BaseChatModel, config):
-        toolkit = GitHubToolkit(config)
-        tools = toolkit.create_tools()
+    def __init__(self, llm: BaseChatModel, config, tools=None):
+        if tools is None:
+            tools = GitHubToolkit(config).create_tools()
         super().__init__(SourceType.GITHUB, llm, tools)
     
     def get_system_prompt(self) -> str:
@@ -46,4 +46,3 @@ class GitHubAgent(BaseAgent):
                 return None
         
         return None
-

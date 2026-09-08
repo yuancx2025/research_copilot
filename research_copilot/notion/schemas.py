@@ -4,7 +4,8 @@ Pydantic models for study plan structures.
 Provides type-safe models for citations, resources, learning units, phases, and study plans.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Literal
+from uuid import uuid4
 from pydantic import BaseModel, Field
 
 
@@ -52,3 +53,16 @@ class StudyPlan(BaseModel):
     citations: List[Citation]  # Typed Citation models, not dicts
     next_steps: List[str]
 
+
+class StudyPlanDraft(BaseModel):
+    draft_id: str = Field(default_factory=lambda: str(uuid4()))
+    plan: StudyPlan
+    markdown: str
+    connection_generation: str
+
+
+class ExportResult(BaseModel):
+    status: Literal['success', 'failure', 'unknown', 'pending']
+    page_id: str | None = None
+    url: str | None = None
+    message: str = ''

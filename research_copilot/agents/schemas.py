@@ -50,6 +50,11 @@ class BaseCitation(BaseModel):
         return self.url.lower().strip()
 
 
+class NotionCitation(BaseCitation):
+    """Evidence from a fetched page, not a search snippet."""
+    pass
+
+
 class ArxivCitation(BaseCitation):
     """Citation model for ArXiv papers."""
     authors: List[str] = Field(default_factory=list)
@@ -293,4 +298,3 @@ class LocalCitation(BaseCitation):
         if self.source_path:
             return f"local:{self.source_path.lower()}"
         return super().get_deduplication_key()
-

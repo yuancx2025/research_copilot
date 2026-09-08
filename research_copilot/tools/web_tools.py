@@ -4,7 +4,6 @@ from .base import BaseToolkit, SourceType
 import requests
 from bs4 import BeautifulSoup
 import logging
-import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +67,7 @@ class WebToolkit(BaseToolkit):
     
     async def _init_mcp(self):
         """Initialize local MCP adapter via stdio for web search if configured."""
-        if self.use_mcp and not self._mcp_adapter:
+        if self.use_mcp and not self._mcp_tools:
             from .mcp.adapter import MCPToolAdapter
             
             command = getattr(self.config, 'WEB_SEARCH_MCP_COMMAND', None)
@@ -327,33 +326,6 @@ class WebToolkit(BaseToolkit):
     
     def create_tools(self) -> List[BaseTool]:
         """Create web research tools, preferring MCP if available."""
-        # Try to initialize MCP synchronously if configured
-        if self.use_mcp:
-            try:
-                # Check if we're in an async context
-                try:
-                    loop = asyncio.get_running_loop()
-                    # If we're in an async context, we can't use run_until_complete
-                    # In this case, MCP tools will be initialized lazily on first use
-                    # or we'll fall back to direct API
-                    if not self._mcp_tools:
-                        logger.warning(
-                            "Web search MCP initialization deferred (async context detected). "
-                            "Will use direct API for now."
-                        )
-                except RuntimeError:
-                    # No running loop, safe to create one
-                    try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_closed():
-                            asyncio.run(self._ensure_mcp_initialized())
-                        else:
-                            loop.run_until_complete(self._ensure_mcp_initialized())
-                    except RuntimeError:
-                        asyncio.run(self._ensure_mcp_initialized())
-            except Exception as e:
-                logger.warning(f"Failed to initialize web search MCP: {e}. Falling back to direct API.")
-        
         # Return MCP tools if available, otherwise API tools
         if self.use_mcp and self._mcp_tools:
             return self._mcp_tools

@@ -4,6 +4,11 @@ from .state import State, AgentState
 from .schemas import QueryAnalysis, ResearchIntent
 from .prompts import *
 from research_copilot.core.llm_utils import extract_content_as_string
+from research_copilot.orchestrator.intent import (
+    available_agents,
+    ensure_notion,
+    keyword_agents,
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -102,146 +107,72 @@ def classify_research_intent(state: State, llm) -> Dict[str, Any]:
             last_msg = state["messages"][-1]
             if isinstance(last_msg, HumanMessage):
                 query = last_msg.content
-    
+
+    sources = available_agents(state)
+    default = [name for name in ("local", "web") if name in sources] or list(sources)
+
     if not query:
-        # Default fallback
         return {
-            "research_intent": ["local", "web"],
+            "research_intent": default,
             "routing_decision": {
-                "reasoning": "No query found, defaulting to local and web agents",
+                "reasoning": "No query found, defaulting to available local/web agents",
                 "confidence": 0.5
             },
-            "active_agents": ["local", "web"]
+            "active_agents": default
         }
-    
+
     conversation_summary = state.get("conversation_summary", "")
-    prompt = get_intent_classification_prompt(query, conversation_summary)
-    
+    prompt = get_intent_classification_prompt(query, conversation_summary, sources)
+
+    def _result(agents, reasoning, confidence=0.7, suggested=None):
+        selected = ensure_notion(query, [a for a in agents if a in sources], sources)
+        if not selected:
+            selected = keyword_agents(query, sources)
+        return {
+            "research_intent": selected,
+            "routing_decision": {
+                "reasoning": reasoning,
+                "confidence": confidence,
+                **({"suggested_queries": suggested} if suggested else {}),
+            },
+            "active_agents": selected,
+        }
+
     try:
         llm_with_structure = llm.with_config(temperature=0.1).with_structured_output(ResearchIntent)
         # Gemini requires at least one non-system message, use HumanMessage instead of SystemMessage
         intent = llm_with_structure.invoke([HumanMessage(content=prompt)])
-        
-        # Handle case where structured output returns None (Gemini 3 issue)
+
         if intent is None:
-            # Fallback: analyze query text to determine agents
-            query_lower = query.lower()
-            selected_agents = []
-            
-            # Check for explicit source mentions (case-insensitive)
-            if any(term in query_lower for term in ["arxiv", "arxiv.org"]):
-                selected_agents.append("arxiv")
-            elif any(term in query_lower for term in ["paper", "research paper", "publication", "research"]):
-                selected_agents.append("arxiv")
-            
-            if any(term in query_lower for term in ["youtube", "youtu.be", "video", "tutorial", "lecture"]):
-                selected_agents.append("youtube")
-            
-            if any(term in query_lower for term in ["github", "github.com", "code", "repository", "repo", "implementation"]):
-                selected_agents.append("github")
-            
-            if any(term in query_lower for term in ["web", "article", "blog", "documentation", "website"]):
-                selected_agents.append("web")
-            
-            # If query explicitly mentions sources, use only those; otherwise include all
-            if not selected_agents:
-                # No explicit mentions, include all sources
-                selected_agents = ["arxiv", "youtube", "github", "web", "local"]
-            else:
-                # Add local for RAG search, but don't add web if not explicitly mentioned
-                if "local" not in selected_agents:
-                    selected_agents.append("local")
-            
-            return {
-                "research_intent": selected_agents,
-                "routing_decision": {
-                    "reasoning": f"Structured output returned None. Analyzed query keywords to select agents: {', '.join(selected_agents)}",
-                    "confidence": 0.7
-                },
-                "active_agents": selected_agents
-            }
-        
-        # Validate agent names (filter invalid ones)
-        valid_agents = ["arxiv", "youtube", "github", "web", "local"]
-        filtered_agents = [a for a in (intent.agents if hasattr(intent, 'agents') and intent.agents else []) if a in valid_agents]
-        
-        # Default fallback if no valid agents
-        if not filtered_agents:
-            # Analyze query to determine agents
-            query_lower = query.lower()
-            if any(term in query_lower for term in ["arxiv", "arxiv.org"]):
-                filtered_agents.append("arxiv")
-            elif any(term in query_lower for term in ["paper", "research paper", "publication", "research"]):
-                filtered_agents.append("arxiv")
-            
-            if any(term in query_lower for term in ["youtube", "youtu.be", "video", "tutorial", "lecture"]):
-                filtered_agents.append("youtube")
-            
-            if any(term in query_lower for term in ["github", "github.com", "code", "repository", "repo", "implementation"]):
-                filtered_agents.append("github")
-            
-            if any(term in query_lower for term in ["web", "article", "blog", "documentation", "website"]):
-                filtered_agents.append("web")
-            
-            # If still no agents found, include all
-            if not filtered_agents:
-                filtered_agents = ["arxiv", "youtube", "github", "web", "local"]
-            else:
-                # Add local for RAG search
-                if "local" not in filtered_agents:
-                    filtered_agents.append("local")
-        
-        return {
-            "research_intent": filtered_agents,
-            "routing_decision": {
-                "reasoning": (intent.reasoning if hasattr(intent, 'reasoning') else "Selected agents based on query analysis"),
-                "confidence": (intent.confidence if hasattr(intent, 'confidence') else 0.7),
-                "suggested_queries": (intent.suggested_queries if hasattr(intent, 'suggested_queries') and intent.suggested_queries else {})
-            },
-            "active_agents": filtered_agents
-        }
+            selected = keyword_agents(query, sources)
+            return _result(
+                selected,
+                f"Structured output returned None. Analyzed query keywords to select agents: {', '.join(selected)}",
+            )
+
+        filtered = [a for a in (intent.agents if hasattr(intent, 'agents') and intent.agents else []) if a in sources]
+        if not filtered:
+            filtered = keyword_agents(query, sources)
+        return _result(
+            filtered,
+            (intent.reasoning if hasattr(intent, 'reasoning') else "Selected agents based on query analysis"),
+            (intent.confidence if hasattr(intent, 'confidence') else 0.7),
+            (intent.suggested_queries if hasattr(intent, 'suggested_queries') and intent.suggested_queries else None),
+        )
     except Exception as e:
-        # Error handling: default to safe fallback with keyword analysis
         logger.warning(f"Error in intent classification: {e}")
-        query_lower = query.lower()
-        fallback_agents = []
-        
-        # Analyze query keywords - prioritize explicit mentions
-        if any(term in query_lower for term in ["arxiv", "arxiv.org"]):
-            fallback_agents.append("arxiv")
-        elif any(term in query_lower for term in ["paper", "research paper", "publication", "research"]):
-            fallback_agents.append("arxiv")
-        
-        if any(term in query_lower for term in ["youtube", "youtu.be", "video", "tutorial", "lecture"]):
-            fallback_agents.append("youtube")
-        
-        if any(term in query_lower for term in ["github", "github.com", "code", "repository", "repo", "implementation"]):
-            fallback_agents.append("github")
-        
-        if any(term in query_lower for term in ["web", "article", "blog", "documentation", "website"]):
-            fallback_agents.append("web")
-        
-        # If no explicit mentions, include all sources
-        if not fallback_agents:
-            fallback_agents = ["arxiv", "youtube", "github", "web", "local"]
-        else:
-            # Add local for RAG search
-            if "local" not in fallback_agents:
-                fallback_agents.append("local")
-        
-        return {
-            "research_intent": fallback_agents,
-            "routing_decision": {
-                "reasoning": f"Intent classification failed: {str(e)}. Analyzed query keywords to select agents: {', '.join(fallback_agents)}",
-                "confidence": 0.6
-            },
-            "active_agents": fallback_agents
-        }
+        selected = keyword_agents(query, sources)
+        return _result(
+            selected,
+            f"Intent classification failed: {str(e)}. Analyzed query keywords to select agents: {', '.join(selected)}",
+            0.6,
+        )
+
 
 def human_input_node(state: State):
     return {}
 
-def agent_node(state: AgentState, llm_with_tools, system_prompt: str = None):
+async def agent_node(state: AgentState, llm_with_tools, system_prompt: str = None):
     """
     Agent node that processes questions with tools.
     
@@ -258,10 +189,10 @@ def agent_node(state: AgentState, llm_with_tools, system_prompt: str = None):
     
     if not state.get("messages"):
         human_msg = HumanMessage(content=state["question"])
-        response = llm_with_tools.invoke([sys_msg] + [human_msg])
+        response = await llm_with_tools.ainvoke([sys_msg] + [human_msg])
         return {"messages": [human_msg, response]}
     
-    return {"messages": [llm_with_tools.invoke([sys_msg] + state["messages"])]}
+    return {"messages": [await llm_with_tools.ainvoke([sys_msg] + state["messages"])]}
 
 def extract_final_answer(state: AgentState):
     for msg in reversed(state["messages"]):

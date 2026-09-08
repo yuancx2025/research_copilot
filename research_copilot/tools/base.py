@@ -11,6 +11,7 @@ class SourceType(str, Enum):
     YOUTUBE = "youtube"
     GITHUB = "github"
     WEB = "web"
+    NOTION = "notion"
 
 class Citation(BaseModel):
     """Standardized citation format across all sources."""

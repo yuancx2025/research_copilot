@@ -134,11 +134,12 @@ def format_citations_markdown(citations: List[Dict[str, Any]]) -> str:
         "github": "💻 GitHub Repositories",
         "web": "🌐 Web Articles",
         "local": "📚 Local Documents",
+        "notion": "📝 Notion Pages",
         "unknown": "📋 Other Sources"
     }
     
     # Display in order: arxiv, youtube, github, web, local, unknown
-    display_order = ["arxiv", "youtube", "github", "web", "local", "unknown"]
+    display_order = ["arxiv", "youtube", "github", "web", "local", "notion", "unknown"]
     
     for source_type in display_order:
         if source_type in grouped:
@@ -175,7 +176,8 @@ def format_agent_results_summary(agent_results: Dict[str, List[Dict[str, Any]]])
         "youtube": "🎥 YouTube",
         "github": "💻 GitHub",
         "web": "🌐 Web",
-        "local": "📚 Local Documents"
+        "local": "📚 Local Documents",
+        "notion": "📝 Notion",
     }
     
     for source_type, results in agent_results.items():

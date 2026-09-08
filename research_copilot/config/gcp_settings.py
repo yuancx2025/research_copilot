@@ -119,29 +119,7 @@ RERANK_BATCH_SIZE = int(os.getenv("RERANK_BATCH_SIZE", "5"))
 # --- Research Cache Configuration ---
 ENABLE_RESEARCH_CACHE = os.getenv("ENABLE_RESEARCH_CACHE", "true").lower() == "true"
 
-# --- MCP Server Configuration ---
-USE_GITHUB_MCP = os.getenv("USE_GITHUB_MCP", "false").lower() == "true"
-USE_WEB_SEARCH_MCP = os.getenv("USE_WEB_SEARCH_MCP", "false").lower() == "true"
-USE_NOTION_MCP = os.getenv("USE_NOTION_MCP", "false").lower() == "true"
-
-# MCP server commands (local stdio transport)
-# GitHub MCP: default to npx-based server
-_github_mcp_cmd = os.getenv("GITHUB_MCP_COMMAND", "npx,-y,@modelcontextprotocol/server-github")
-GITHUB_MCP_COMMAND = _github_mcp_cmd.split(",") if isinstance(_github_mcp_cmd, str) else _github_mcp_cmd
-_github_mcp_args = os.getenv("GITHUB_MCP_ARGS", "")
-GITHUB_MCP_ARGS = _github_mcp_args.split(",") if _github_mcp_args else []
-
-# Web Search MCP: default to Python-based server (custom implementation)
-_web_mcp_cmd = os.getenv("WEB_SEARCH_MCP_COMMAND", "")
-WEB_SEARCH_MCP_COMMAND = _web_mcp_cmd.split(",") if _web_mcp_cmd else None  # None means use direct API
-_web_mcp_args = os.getenv("WEB_SEARCH_MCP_ARGS", "")
-WEB_SEARCH_MCP_ARGS = _web_mcp_args.split(",") if _web_mcp_args else []
-
-# Notion MCP: default to npx-based server
-_notion_mcp_cmd = os.getenv("NOTION_MCP_COMMAND", "npx,-y,@modelcontextprotocol/server-notion")
-NOTION_MCP_COMMAND = _notion_mcp_cmd.split(",") if isinstance(_notion_mcp_cmd, str) else _notion_mcp_cmd
-_notion_mcp_args = os.getenv("NOTION_MCP_ARGS", "")
-NOTION_MCP_ARGS = _notion_mcp_args.split(",") if _notion_mcp_args else []
+from .mcp_settings import *
 
 NOTION_PARENT_PAGE_ID = os.getenv("NOTION_PARENT_PAGE_ID")
 

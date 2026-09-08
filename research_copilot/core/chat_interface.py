@@ -1,5 +1,6 @@
 from langchain_core.messages import HumanMessage
 from typing import Dict, List, Any, Tuple
+from research_copilot.orchestrator.intent import explicit_notion_request
 
 
 def _extract_text_from_content(content) -> str:
@@ -55,7 +56,7 @@ class ChatInterface:
     def __init__(self, rag_system):
         self.rag_system = rag_system
         
-    def chat(self, message, history):
+    async def chat(self, message, history):
         """
         Process chat message and return answer with research artifacts.
         
@@ -65,14 +66,30 @@ class ChatInterface:
             - agent_results: Dict of results by agent type
             - sources: List of source types used
         """
-        if not self.rag_system.agent_graph:
+        if not getattr(self.rag_system, 'llm', None):
             return "⚠️ System not initialized!", {}
             
         try:
-            result = self.rag_system.agent_graph.invoke(
-                {"messages": [HumanMessage(content=message.strip())]},
+            notion = getattr(self.rag_system, "notion_service", None)
+            await self.rag_system.prepare_run(notion)
+            generation = notion.connection.generation if notion else None
+            wants_notion = explicit_notion_request(message)
+            if wants_notion and (not notion or not notion.connection.connected):
+                return "Connect Notion before searching your workspace.", {}
+            if wants_notion and not self.rag_system._graph_generation:
+                return "Notion is temporarily unavailable. Check the connection and retry.", {}
+            sources = [s.value for s in self.rag_system.tool_registry.list_available_sources()]
+            if self.rag_system._graph_generation:
+                sources.append("notion")
+            result = await self.rag_system.agent_graph.ainvoke(
+                {"messages": [HumanMessage(content=message.strip())], "available_sources": sources,
+                 "citations": [{"__reset__": True}], "agent_answers": [{"__reset__": True}],
+                 "agent_results": {}, "create_study_plan": False},
                 self.rag_system.get_config()
             )
+            if notion and (generation != notion.connection.generation or
+                           (generation and not notion.connection.connected)):
+                return "The Notion connection changed during research. Start a new request.", {}
             
             # Extract answer (handle Gemini's structured content format)
             raw_content = result["messages"][-1].content if result.get("messages") else "No response generated."
@@ -92,8 +109,8 @@ class ChatInterface:
             
             return answer_text, research_data
             
-        except Exception as e:
-            return f"❌ Error: {str(e)}", {}
+        except Exception:
+            return "Research could not complete. Check the model and source connections, then retry.", {}
     
     def clear_session(self):
         self.rag_system.reset_thread()

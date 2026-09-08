@@ -11,9 +11,10 @@ responses>=0.23.0
 aiohttp>=3.9.0
 
 # Core dependencies required by tools (needed for tests)
-langchain-core>=0.1.0
+langchain==1.2.0
+langchain-core==1.2.6
 langchain-community>=0.0.20
-langgraph>=0.2.0  # Required for agent subgraphs
+langgraph==1.0.5  # Required for agent subgraphs
 langchain_huggingface>=0.1.0
 langchain_qdrant>=0.1.0
 qdrant-client>=1.7.0  # Qdrant vector database client
@@ -34,10 +35,15 @@ pymupdf>=1.23.0  # For ArXiv PDF parsing (optional but recommended)
 langchain-tavily>=0.1.0  # Tavily web search (replaces deprecated TavilySearchResults)
 pymupdf4llm>=0.0.5  # For advanced PDF parsing features
 
-# MCP dependencies
-mcp>=0.1.0  # Uncomment if testing MCP features
-langchain-mcp-adapters>=0.2.0  # Official LangChain MCP adapters
-gradio>=4.0.0
+# MCP / app-server stack (Python 3.11 compatibility baseline; keep MCP below v2)
+mcp==1.25.0
+langchain-mcp-adapters==0.2.1
+gradio==6.2.0
+httpx==0.28.1
+fastapi==0.128.0
+uvicorn==0.40.0
+keyring==25.7.0
+itsdangerous==2.2.0
 
 # GCP dependencies (for production deployment)
 google-cloud-secret-manager>=2.16.0  # For Secret Manager integration (optional, only needed for GCP)

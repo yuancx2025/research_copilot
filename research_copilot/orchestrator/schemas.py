@@ -21,7 +21,7 @@ class ResearchIntent(BaseModel):
     should handle a given research query.
     """
     agents: List[str] = Field(
-        description="List of agent types to invoke: 'arxiv', 'youtube', 'github', 'web', 'local'"
+        description="List of agent types to invoke: 'arxiv', 'youtube', 'github', 'web', 'local', 'notion'"
     )
     reasoning: str = Field(
         description="Explanation of why these agents were selected for this query"

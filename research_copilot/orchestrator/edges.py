@@ -2,6 +2,7 @@ from typing import Literal, List, Optional
 from langgraph.types import Send
 from .state import State, AgentState
 from research_copilot.config import settings as config
+from research_copilot.orchestrator.intent import available_agents
 
 def route_after_rewrite(state: State) -> Literal["human_input", "process_question"]:
     if not state.get("questionIsClear", False):
@@ -69,7 +70,8 @@ def route_to_agents(state: State) -> List[Send]:
         "youtube": "youtube_agent",
         "github": "github_agent",
         "web": "web_agent",
-        "local": "local_agent"
+        "local": "local_agent",
+        "notion": "notion_agent"
     }
     
     # Check cache if enabled
@@ -83,10 +85,10 @@ def route_to_agents(state: State) -> List[Send]:
     
     for intent in research_intent:
         agent_name = intent_to_agent.get(intent)
-        if agent_name:
+        if agent_name and intent in available_agents(state):
             # Check cache first if enabled
             cache_key = f"{intent}:{query.lower().strip()}"
-            if cache_enabled and cache_key in cached_results:
+            if intent != "notion" and cache_enabled and cache_key in cached_results:
                 cache_hits.append(intent)
                 # Skip creating Send for cached results - they'll be added in aggregate
                 continue
@@ -95,6 +97,7 @@ def route_to_agents(state: State) -> List[Send]:
             agent_state = {
                 "question": query,
                 "question_index": 0,
+                "tool_calls_used": 0,
                 "messages": [],
                 "source": intent  # Store source type for citation tracking
             }
@@ -115,11 +118,12 @@ def route_to_agents(state: State) -> List[Send]:
     if not sends:
         print("⚠ Warning: No valid agents to route to, defaulting to ['local', 'web']")
         # Fallback to local and web agents
-        for intent in ["local", "web"]:
+        for intent in [a for a in ("local", "web") if a in available_agents(state)]:
             agent_name = intent_to_agent[intent]
             agent_state = {
                 "question": query,
                 "question_index": 0,
+                "tool_calls_used": 0,
                 "messages": [],
                 "source": intent
             }

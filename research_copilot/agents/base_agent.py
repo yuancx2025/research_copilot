@@ -40,27 +40,10 @@ def should_continue_with_limit(state: AgentState) -> Literal["tools", "extract_a
     Returns:
         "tools" if more tool calls are allowed and present, "extract_answer" otherwise
     """
-    # Count total tool calls in the conversation
-    tool_call_count = sum(
-        1 for m in state.get("messages", [])
-        if isinstance(m, AIMessage) and hasattr(m, "tool_calls") and m.tool_calls
-    )
-    
-    # Enforce limit: if we've exceeded max tool calls, force extraction
-    if tool_call_count >= MAX_TOOL_CALLS_PER_AGENT:
-        logger.warning(
-            f"Agent reached max tool call limit ({MAX_TOOL_CALLS_PER_AGENT}). "
-            "Forcing answer extraction."
-        )
-        return "extract_answer"
-    
-    # Otherwise, check if last message has tool calls (same logic as tools_condition)
     messages = state.get("messages", [])
-    if messages:
-        last_message = messages[-1]
-        if isinstance(last_message, AIMessage) and hasattr(last_message, "tool_calls") and last_message.tool_calls:
-            return "tools"
-    
+    if messages and isinstance(messages[-1], AIMessage) and messages[-1].tool_calls:
+        return "tools"
+
     # No tool calls, extract answer
     return "extract_answer"
 
@@ -114,7 +97,25 @@ class BaseAgent(ABC):
             Compiled LangGraph subgraph ready for execution
         """
         llm_with_tools = self.llm.bind_tools(self.tools)
-        tool_node = ToolNode(self.tools)
+        tool_node = ToolNode(self.tools, handle_tool_errors=lambda exc: "Tool failed. Check connection or permissions.")
+
+        async def bounded_tools(state):
+            used = state.get("tool_calls_used", 0)
+            messages = []
+            for call in state["messages"][-1].tool_calls:
+                if used >= MAX_TOOL_CALLS_PER_AGENT:
+                    messages.append(ToolMessage(content="Tool budget exhausted.", tool_call_id=call["id"], status="error"))
+                    continue
+                used += 1
+                result = await tool_node.ainvoke({"messages": [AIMessage(content="", tool_calls=[call])]})
+                messages.extend(result["messages"])
+            return {"messages": messages, "tool_calls_used": used}
+
+        async def finalize(state):
+            from langchain_core.messages import SystemMessage
+            response = await self.llm.ainvoke([SystemMessage(content=self.get_system_prompt() +
+                " Tool budget exhausted. Answer from available evidence and explain limitations.")] + state["messages"])
+            return {"messages": [response]}
         
         checkpointer = InMemorySaver()
         
@@ -127,7 +128,8 @@ class BaseAgent(ABC):
         
         agent_builder = StateGraph(AgentState)
         agent_builder.add_node("agent", agent_node_func)
-        agent_builder.add_node("tools", tool_node)
+        agent_builder.add_node("tools", bounded_tools)
+        agent_builder.add_node("finalize", finalize)
         agent_builder.add_node("extract_answer", self.extract_answer_with_citations)
         
         agent_builder.add_edge(START, "agent")
@@ -136,7 +138,8 @@ class BaseAgent(ABC):
             should_continue_with_limit, 
             {"tools": "tools", "extract_answer": "extract_answer"}
         )
-        agent_builder.add_edge("tools", "agent")
+        agent_builder.add_conditional_edges("tools", lambda s: "finalize" if s.get("tool_calls_used", 0) >= MAX_TOOL_CALLS_PER_AGENT else "agent")
+        agent_builder.add_edge("finalize", "extract_answer")
         agent_builder.add_edge("extract_answer", END)
         
         return agent_builder.compile(checkpointer=checkpointer)
@@ -203,13 +206,23 @@ class BaseAgent(ABC):
         total_citations_added = 0  # Track total citations to enforce global limit
         
         for msg in messages:
-            if isinstance(msg, ToolMessage):
+            if isinstance(msg, ToolMessage) and msg.status != "error":
                 tool_call_id = getattr(msg, "tool_call_id", None)
                 tool_call_info = tool_call_map.get(tool_call_id)
                 
                 if tool_call_info:
                     # Parse tool result - try JSON parsing, but keep as string if it fails
                     tool_result = msg.content
+                    if isinstance(msg.artifact, dict) and 'structured_content' in msg.artifact:
+                        tool_result = msg.artifact['structured_content']
+                    elif isinstance(tool_result, list) and all(isinstance(b, dict) and b.get('type') == 'text' for b in tool_result):
+                        decoded = []
+                        for block in tool_result:
+                            try:
+                                decoded.append(json.loads(block['text']))
+                            except (KeyError, ValueError):
+                                decoded.append(block.get('text', ''))
+                        tool_result = decoded[0] if len(decoded) == 1 else decoded
                     if isinstance(tool_result, str):
                         try:
                             tool_result = json.loads(tool_result)
@@ -314,4 +327,3 @@ class BaseAgent(ABC):
                 "citations": citations_dict
             }]
         }
-

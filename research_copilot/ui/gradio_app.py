@@ -6,21 +6,22 @@ from research_copilot.ui.research_formatter import format_citations_markdown, fo
 from research_copilot.ui.css import custom_css
 from research_copilot.config import settings as config
 import logging
+import asyncio
+from research_copilot.notion.export_service import generate_draft
+from research_copilot.notion.schemas import StudyPlanDraft
 
 logger = logging.getLogger(__name__)
 
 
 def is_notion_configured():
-    """Check if Notion is configured (Direct API only)."""
-    return (
-        getattr(config, 'NOTION_API_KEY', None) and 
-        getattr(config, 'NOTION_PARENT_PAGE_ID', None)
-    )
+    return getattr(config, 'NOTION_BACKEND', 'disabled') in ('rest', 'mcp')
 
 
-def create_gradio_ui():
+def create_gradio_ui(notion_service=None, export_service=None):
     rag_system = RAGSystem()
     rag_system.initialize()
+    rag_system.notion_service = notion_service
+    operation_lock = asyncio.Lock()
     
     doc_manager = DocumentManager(rag_system)
     chat_interface = ChatInterface(rag_system)
@@ -28,6 +29,7 @@ def create_gradio_ui():
     # Store last research data for study plan creation
     last_research_data = {}
     last_query = ""
+    research_generation = None
     
     def format_file_list():
         files = doc_manager.get_markdown_files()
@@ -52,22 +54,24 @@ def create_gradio_ui():
         gr.Info(f"🗑️ Removed all documents")
         return format_file_list()
     
-    def chat_handler(msg, hist):
+    async def chat_handler(msg, hist):
         """Handler for Chat tab - returns only the answer string."""
-        answer, research_data = chat_interface.chat(msg, hist)
+        async with operation_lock:
+            answer, research_data = await chat_interface.chat(msg, hist)
         # gr.ChatInterface manages history automatically, so just return the answer
         return answer
     
-    def research_chat_handler(msg, hist):
+    async def research_chat_handler(msg, hist):
         """Handler for Research tab that returns both answer and artifacts."""
-        nonlocal last_research_data, last_query
+        nonlocal last_research_data, last_query, research_generation
         
-        answer, research_data = chat_interface.chat(msg, hist)
-        
-        # Store research data for study plan creation
-        last_research_data = research_data.copy()
-        last_research_data["answer_text"] = answer
-        last_query = msg.strip()
+        async with operation_lock:
+            answer, research_data = await chat_interface.chat(msg, hist)
+            # Store only completed research while holding the invocation lock.
+            last_research_data = research_data.copy()
+            last_research_data["answer_text"] = answer
+            last_query = msg.strip()
+            research_generation = notion_service.connection.generation if notion_service else "rest"
         
         # Initialize history if None
         if hist is None:
@@ -111,7 +115,8 @@ def create_gradio_ui():
             len(citations) > 0
         )
         
-        return formatted_hist, citations_markdown, sources_summary, gr.update(interactive=notion_button_enabled)
+        values = (formatted_hist, citations_markdown, sources_summary)
+        return (*values, gr.update(interactive=notion_button_enabled)) if is_notion_configured() else values
     
     def clear_chat_handler():
         chat_interface.clear_session()
@@ -121,111 +126,61 @@ def create_gradio_ui():
         chat_interface.clear_session()
         last_research_data = {}
         last_query = ""
-        return [], "*No citations yet.*", "*No sources used yet.*", gr.update(interactive=False)
+        values = ([], "*No citations yet.*", "*No sources used yet.*")
+        return (*values, gr.update(interactive=False)) if is_notion_configured() else values
     
-    def create_notion_study_plan():
-        """Create a Notion study plan using the orchestrator and Notion agent."""
-        nonlocal last_research_data, last_query
-        
-        
-        if not is_notion_configured():
-            return "❌ Notion is not configured. Set NOTION_API_KEY and NOTION_PARENT_PAGE_ID in your environment variables."
-        
-        if not last_research_data or not last_query:
-            return "❌ No research data available. Please perform a research query first."
-        
-        citations = last_research_data.get("citations", [])
-        if not citations:
-            return "❌ No citations found. Please perform a research query with results first."
-        
-        parent_page_id = getattr(config, 'NOTION_PARENT_PAGE_ID', None)
-        if not parent_page_id:
-            return "❌ NOTION_PARENT_PAGE_ID not configured. Please set it in your environment variables."
-        
+    async def invalidate_connection_data():
+        nonlocal last_research_data, last_query, research_generation
+        last_research_data = {}
+        last_query = ""
+        research_generation = None
+        rag_system._mcp_prepared = False
+        rag_system.reset_thread()
+        rag_system.agent_graph = None
+        rag_system._graph_generation = None
+
+    if notion_service:
+        notion_service.connection.listeners.append(invalidate_connection_data)
+
+    async def preview_plan():
         try:
-            # Format research data for Notion agent
-            answer_text = last_research_data.get("answer_text", "")
-            agent_results = last_research_data.get("agent_results", {})
-            
-            # Create a formatted message for the Notion agent
-            # The agent will parse this to extract research data
-            import json
-            research_context = {
-                "query": last_query,
-                "citations": citations,
-                "answer": answer_text,
-                "agent_results": agent_results,
-                "parent_page_id": parent_page_id
-            }
-            
-            # Format as a structured message for the agent
-            notion_query = f"""Create a study plan in Notion with the following research data:
+            generation = notion_service.connection.generation if notion_service else "rest"
+            if notion_service and not notion_service.connection.connected:
+                raise ValueError("Connect Notion first.")
+            if not last_research_data or research_generation != generation:
+                raise ValueError("Run research with the current connection first.")
+            draft = await generate_draft(last_research_data, last_query, rag_system.llm, config, generation or "disconnected")
+            if notion_service and (not notion_service.connection.connected or generation != notion_service.connection.generation):
+                raise ValueError("Connection changed while generating the preview.")
+            return draft.model_dump(), draft.markdown, "", gr.update(interactive=True)
+        except Exception:
+            return None, "", "Could not generate a draft. Run research with the current connection first.", gr.update(interactive=False)
 
-Research Query: {last_query}
+    async def search_destinations(query):
+        if not notion_service:
+            return gr.update(choices=[])
+        try:
+            data = await notion_service.search(query)
+            pages = data.get("results", [])
+            choices = [(p.get("title", "Untitled"), p.get("url") or p.get("id")) for p in pages if p.get("url") or p.get("id")]
+            return gr.update(choices=choices, value=None)
+        except Exception:
+            gr.Warning("Could not search destinations. Check your Notion connection.")
+            return gr.update(choices=[], value=None)
 
-Research Summary:
-{answer_text[:1000]}
+    async def export_plan(draft_data, destination):
+        if not draft_data or not export_service:
+            return "Generate a preview first.", gr.update(interactive=False)
+        try:
+            result = await export_service.publish(StudyPlanDraft.model_validate(draft_data), destination)
+            if result.status == "success":
+                return f"Created: [{result.page_id}]({result.url})", gr.update(interactive=False)
+            if result.status == "pending":
+                return result.message, gr.update(interactive=False)
+            return result.message, gr.update(interactive=result.status == "failure")
+        except Exception:
+            return "Export could not complete. Check the connection and destination.", gr.update(interactive=True)
 
-Citations ({len(citations)} total):
-{json.dumps(citations[:10], indent=2)[:2000]}
-
-Parent Page ID: {parent_page_id}
-
-Please create a comprehensive study plan with:
-- Overview section
-- Learning objectives
-- Key concepts
-- Resources organized by type
-- Timeline
-- Next steps
-
-Use the notion-create-pages tool to create the page."""
-            
-            # Invoke orchestrator with create_study_plan flag
-            from langchain_core.messages import HumanMessage
-            
-            
-            result = rag_system.agent_graph.invoke(
-                {
-                    "messages": [HumanMessage(content=notion_query)],
-                    "create_study_plan": True,
-                    "originalQuery": last_query,
-                    "citations": citations,
-                    "agent_results": agent_results
-                },
-                rag_system.get_config()
-            )
-            
-            
-            # Extract Notion page URL from result
-            final_message = result.get("messages", [])[-1] if result.get("messages") else None
-            if final_message:
-                answer_content = final_message.content if hasattr(final_message, 'content') else str(final_message)
-                
-                # Look for URL in the answer
-                import re
-                url_pattern = r'https?://[^\s\)]+'
-                urls = re.findall(url_pattern, answer_content)
-                
-                if urls:
-                    page_url = urls[0]
-                    return f"✅ Study plan created successfully! [View in Notion]({page_url})"
-                else:
-                    # Check state for notion_page_url
-                    notion_url = result.get("notion_page_url", "")
-                    if notion_url:
-                        return f"✅ Study plan created successfully! [View in Notion]({notion_url})"
-                    else:
-                        return f"✅ Study plan creation initiated. Response: {answer_content[:200]}..."
-            
-            return "✅ Study plan creation completed. Check Notion for the new page."
-        
-        except Exception as e:
-            logger.error(f"Failed to create Notion study plan: {e}")
-            import traceback
-            traceback.print_exc()
-            return f"❌ Error creating study plan: {str(e)}"
-    
     # Create theme (will be passed to launch() in Gradio 6.0)
     theme = gr.themes.Base(
         primary_hue="blue",
@@ -299,7 +254,9 @@ Use the notion-create-pages tool to create the page."""
         
         with gr.Tab("🔬 Research"):
             gr.Markdown("## 🔬 Research Assistant")
-            gr.Markdown("Ask research questions and explore papers, videos, GitHub repos, and web articles.")
+            gr.Markdown("Explore papers, videos, repositories, web articles, and your connected Notion notes.")
+            if notion_service:
+                gr.HTML('<iframe src="/oauth/notion/panel" title="Notion connection" style="width:100%;height:90px;border:0"></iframe>')
             
             # File upload section for Research tab
             with gr.Row():
@@ -362,13 +319,22 @@ Use the notion-create-pages tool to create the page."""
                         gr.Markdown("### 📝 Notion Integration")
                         
                         notion_button = gr.Button(
-                            "📝 Create Study Plan in Notion",
+                            "Preview Study Plan",
                             variant="primary",
                             size="md",
                             interactive=False,
                             elem_id="notion-study-plan-btn"
                         )
                         
+                        draft_state = gr.State(None)
+                        preview = gr.Markdown()
+                        destination_query = gr.Textbox(label="Search destination pages")
+                        destination_search = gr.Button("Search pages")
+                        destination_choices = gr.Dropdown(label="Matching pages", choices=[])
+                        destination = gr.Textbox(label="Destination page URL or UUID", value=getattr(config, "NOTION_PARENT_PAGE_ID", "") or "")
+                        export_button = gr.Button("Export displayed plan", interactive=False)
+                        destination_search.click(search_destinations, inputs=destination_query, outputs=destination_choices)
+                        destination_choices.change(lambda value: value or "", inputs=destination_choices, outputs=destination)
                         notion_status = gr.Markdown(
                             value="",
                             elem_id="notion-status"
@@ -399,8 +365,8 @@ Use the notion-create-pages tool to create the page."""
             )
             
             # Wire up events
-            def submit_research(msg, hist):
-                return research_chat_handler(msg, hist)
+            async def submit_research(msg, hist):
+                return await research_chat_handler(msg, hist)
             
             # Determine outputs based on whether Notion is configured
             if is_notion_configured():
@@ -436,10 +402,14 @@ Use the notion-create-pages tool to create the page."""
             # Notion study plan button handler
             if is_notion_configured():
                 notion_button.click(
-                    create_notion_study_plan,
-                    outputs=[notion_status]
+                    preview_plan,
+                    outputs=[draft_state, preview, notion_status, export_button]
                 )
     
+            if is_notion_configured():
+                export_button.click(lambda: gr.update(interactive=False), outputs=export_button).then(
+                    export_plan, inputs=[draft_state, destination], outputs=[notion_status, export_button])
+
     # Attach theme and css to demo for Gradio 6.0
     demo.theme = theme
     demo.css = custom_css
