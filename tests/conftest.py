@@ -5,9 +5,11 @@ import pytest
 import sys
 from pathlib import Path
 
-# Add project root to path
+# Add project root and package root so both
+# `research_copilot.foo` and legacy `rag.foo` / `config` imports work.
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "research_copilot"))
 
 
 @pytest.fixture

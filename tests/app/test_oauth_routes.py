@@ -5,8 +5,7 @@ pytest.importorskip('itsdangerous')
 
 from fastapi.testclient import TestClient
 from research_copilot.app.main import create_app
-from research_copilot.tools.mcp.oauth import ConnectionService
-from tests.mcp.test_oauth import MemoryStore, OAuthServer, factory
+from tests.runtime.auth.test_oauth import MemoryStore, OAuthServer, factory, ConnectionService
 
 
 def _app(service):

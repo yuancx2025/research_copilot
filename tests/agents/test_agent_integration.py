@@ -31,12 +31,13 @@ try:
 except ImportError:
     OLLAMA_AVAILABLE = False
 
-from agents.local_rag_agent import LocalRAGAgent
-from agents.arxiv_agent import ArxivAgent
-from agents.youtube_agent import YouTubeAgent
-from agents.github_agent import GitHubAgent
-from agents.web_agent import WebAgent
-from orchestrator.state import AgentState
+from research_copilot.sources.local.agent import LocalRAGAgent
+from research_copilot.sources.arxiv.agent import ArxivAgent
+from research_copilot.sources.youtube.agent import YouTubeAgent
+from research_copilot.sources.github.agent import GitHubAgent
+from research_copilot.sources.web.agent import WebAgent
+from tests.agent_factories import local_agent, arxiv_agent, youtube_agent, github_agent, web_agent
+from research_copilot.runtime.agent_state import AgentState
 
 
 def create_llm(provider=None):
@@ -106,7 +107,7 @@ def real_config():
 @pytest.fixture
 def real_collection():
     """Create or get real vector store collection."""
-    from db.vector_db_manager import VectorDbManager
+    from research_copilot.storage.qdrant_client import VectorDbManager
     
     vector_db = VectorDbManager()
     vector_db.create_collection(config.CHILD_COLLECTION)
@@ -127,7 +128,7 @@ class TestArxivAgentReal:
     
     def test_arxiv_agent_search(self, real_llm, real_config, graph_config):
         """Test ArxivAgent searching for papers."""
-        agent = ArxivAgent(real_llm, real_config)
+        agent = arxiv_agent(real_llm, real_config)
         
         # Create subgraph
         subgraph = agent.create_agent_subgraph()
@@ -157,7 +158,7 @@ class TestArxivAgentReal:
     
     def test_arxiv_agent_get_paper(self, real_llm, real_config, graph_config):
         """Test ArxivAgent getting specific paper."""
-        agent = ArxivAgent(real_llm, real_config)
+        agent = arxiv_agent(real_llm, real_config)
         subgraph = agent.create_agent_subgraph()
         
         state = AgentState(
@@ -179,7 +180,7 @@ class TestYouTubeAgentReal:
     
     def test_youtube_agent_transcript(self, real_llm, real_config, graph_config):
         """Test YouTubeAgent extracting transcript."""
-        agent = YouTubeAgent(real_llm, real_config)
+        agent = youtube_agent(real_llm, real_config)
         subgraph = agent.create_agent_subgraph()
         
         # Use a video with transcripts - try a few common ones
@@ -210,7 +211,7 @@ class TestGitHubAgentReal:
     
     def test_github_agent_search(self, real_llm, real_config, graph_config):
         """Test GitHubAgent searching repositories."""
-        agent = GitHubAgent(real_llm, real_config)
+        agent = github_agent(real_llm, real_config)
         subgraph = agent.create_agent_subgraph()
         
         state = AgentState(
@@ -227,7 +228,7 @@ class TestGitHubAgentReal:
     
     def test_github_agent_readme(self, real_llm, real_config, graph_config):
         """Test GitHubAgent reading README."""
-        agent = GitHubAgent(real_llm, real_config)
+        agent = github_agent(real_llm, real_config)
         subgraph = agent.create_agent_subgraph()
         
         state = AgentState(
@@ -249,7 +250,7 @@ class TestWebAgentReal:
     
     def test_web_agent_extract(self, real_llm, real_config, graph_config):
         """Test WebAgent extracting webpage content."""
-        agent = WebAgent(real_llm, real_config)
+        agent = web_agent(real_llm, real_config)
         subgraph = agent.create_agent_subgraph()
         
         state = AgentState(
@@ -270,7 +271,7 @@ class TestWebAgentReal:
     )
     def test_web_agent_search(self, real_llm, real_config, graph_config):
         """Test WebAgent searching the web."""
-        agent = WebAgent(real_llm, real_config)
+        agent = web_agent(real_llm, real_config)
         subgraph = agent.create_agent_subgraph()
         
         state = AgentState(
@@ -292,7 +293,7 @@ class TestLocalRAGAgentReal:
     
     def test_local_rag_agent_search(self, real_llm, real_config, real_collection, graph_config):
         """Test LocalRAGAgent searching documents."""
-        agent = LocalRAGAgent(real_llm, real_collection, real_config)
+        agent = local_agent(real_llm, real_collection, real_config)
         subgraph = agent.create_agent_subgraph()
         
         state = AgentState(
@@ -317,11 +318,11 @@ class TestAgentSubgraphCreation:
     def test_all_agents_create_subgraphs(self, real_llm, real_config, real_collection):
         """Test that all agents can create subgraphs."""
         agents = [
-            ("LocalRAGAgent", LocalRAGAgent(real_llm, real_collection, real_config)),
-            ("ArxivAgent", ArxivAgent(real_llm, real_config)),
-            ("YouTubeAgent", YouTubeAgent(real_llm, real_config)),
-            ("GitHubAgent", GitHubAgent(real_llm, real_config)),
-            ("WebAgent", WebAgent(real_llm, real_config)),
+            ("LocalRAGAgent", local_agent(real_llm, real_collection, real_config)),
+            ("ArxivAgent", arxiv_agent(real_llm, real_config)),
+            ("YouTubeAgent", youtube_agent(real_llm, real_config)),
+            ("GitHubAgent", github_agent(real_llm, real_config)),
+            ("WebAgent", web_agent(real_llm, real_config)),
         ]
         
         for name, agent in agents:

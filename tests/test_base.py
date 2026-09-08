@@ -2,7 +2,7 @@
 Tests for tools/base.py - Base classes and schemas
 """
 import pytest
-from tools.base import SourceType, Citation, ToolResult, BaseToolkit
+from research_copilot.runtime.base_toolkit import SourceType, Citation, ToolResult, BaseToolkit
 
 
 class TestSourceType:

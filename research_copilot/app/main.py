@@ -19,13 +19,15 @@ def create_app(config=None, connection=None, ui_factory=None, mount_ui=True):
     parts = urlsplit(base)
     if local and (parts.scheme != 'http' or parts.hostname != '127.0.0.1' or parts.path not in ('', '/') or parts.query or parts.fragment or parts.username or parts.password):
         raise ValueError('Local MCP OAuth requires OAUTH_BASE_URL=http://127.0.0.1:<port>')
-    from research_copilot.tools.mcp.oauth import ConnectionService
-    from research_copilot.notion.notion_mcp_service import NotionMCPService
+    from research_copilot.runtime.auth.connection import ConnectionService
+    from research_copilot.sources.notion.oauth import NotionAuthProvider
+    from research_copilot.sources.notion.mcp_service import NotionMCPService
     from research_copilot.storage.export_store import ExportStore
-    from research_copilot.notion.export_service import ExportService
+    from research_copilot.sources.notion.exporter import ExportService
     from .oauth_routes import oauth_router
     if local:
-        connection = connection or ConnectionService(base_url=base, timeout=getattr(config, 'OAUTH_TIMEOUT', 300))
+        connection = connection or ConnectionService(
+            NotionAuthProvider(), base_url=base, timeout=getattr(config, 'OAUTH_TIMEOUT', 300))
         notion = NotionMCPService(connection)
     else:
         connection, notion = None, None

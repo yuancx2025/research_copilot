@@ -78,9 +78,7 @@ class ChatInterface:
                 return "Connect Notion before searching your workspace.", {}
             if wants_notion and not self.rag_system._graph_generation:
                 return "Notion is temporarily unavailable. Check the connection and retry.", {}
-            sources = [s.value for s in self.rag_system.tool_registry.list_available_sources()]
-            if self.rag_system._graph_generation:
-                sources.append("notion")
+            sources = list(self.rag_system.tool_registry.available_ids())
             result = await self.rag_system.agent_graph.ainvoke(
                 {"messages": [HumanMessage(content=message.strip())], "available_sources": sources,
                  "citations": [{"__reset__": True}], "agent_answers": [{"__reset__": True}],

@@ -1,10 +1,6 @@
 """Shared intent helpers: available sources and explicit Notion requests."""
 import re
 
-VALID_AGENTS = ("arxiv", "youtube", "github", "web", "local", "notion")
-DEFAULT_AGENTS = ("arxiv", "youtube", "github", "web", "local")
-
-# Product name, or "notion" tied to workspace/notes language — not "I have a notion that".
 _NOTION_PRODUCT = re.compile(r"\bNotion\b")
 _NOTION_WORKSPACE = re.compile(
     r"\bnotion\b.{0,32}\b(note|notes|page|pages|workspace|database|wiki|connect)\b"
@@ -21,8 +17,8 @@ def explicit_notion_request(message: str) -> bool:
 def available_agents(state) -> list[str]:
     requested = state.get("available_sources") if isinstance(state, dict) else None
     if not requested:
-        return list(DEFAULT_AGENTS)
-    return [name for name in requested if name in VALID_AGENTS]
+        return ["local", "web"]
+    return list(requested)
 
 
 def keyword_agents(query: str, available: list[str]) -> list[str]:

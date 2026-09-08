@@ -2,7 +2,7 @@
 Tests for db/research_cache.py - Session-based research cache
 """
 import pytest
-from db.research_cache import ResearchCache
+from research_copilot.storage.research_cache import ResearchCache
 
 
 class TestResearchCache:

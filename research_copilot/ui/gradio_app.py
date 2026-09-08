@@ -1,14 +1,14 @@
 import gradio as gr
 from research_copilot.core.chat_interface import ChatInterface
-from research_copilot.core.document_manager import DocumentManager
+from research_copilot.rag.document_manager import DocumentManager
 from research_copilot.core.rag_system import RAGSystem
 from research_copilot.ui.research_formatter import format_citations_markdown, format_agent_results_summary
 from research_copilot.ui.css import custom_css
 from research_copilot.config import settings as config
 import logging
 import asyncio
-from research_copilot.notion.export_service import generate_draft
-from research_copilot.notion.schemas import StudyPlanDraft
+from research_copilot.study_plans import generate_draft
+from research_copilot.study_plans.schemas import StudyPlanDraft
 
 logger = logging.getLogger(__name__)
 

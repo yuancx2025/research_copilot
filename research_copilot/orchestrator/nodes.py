@@ -1,9 +1,9 @@
 from typing import Dict, Any
 from langchain_core.messages import SystemMessage, HumanMessage, RemoveMessage, AIMessage
-from .state import State, AgentState
+from .state import State
 from .schemas import QueryAnalysis, ResearchIntent
 from .prompts import *
-from research_copilot.core.llm_utils import extract_content_as_string
+from research_copilot.runtime.llm_utils import extract_content_as_string
 from research_copilot.orchestrator.intent import (
     available_agents,
     ensure_notion,
@@ -171,51 +171,6 @@ def classify_research_intent(state: State, llm) -> Dict[str, Any]:
 
 def human_input_node(state: State):
     return {}
-
-async def agent_node(state: AgentState, llm_with_tools, system_prompt: str = None):
-    """
-    Agent node that processes questions with tools.
-    
-    Args:
-        state: AgentState with question and messages
-        llm_with_tools: LLM instance bound with tools
-        system_prompt: Optional custom system prompt (defaults to RAG agent prompt)
-    """
-    # Use custom system prompt if provided, otherwise use default
-    if system_prompt is None:
-        system_prompt = get_rag_agent_system_prompt()
-    
-    sys_msg = SystemMessage(content=system_prompt)
-    
-    if not state.get("messages"):
-        human_msg = HumanMessage(content=state["question"])
-        response = await llm_with_tools.ainvoke([sys_msg] + [human_msg])
-        return {"messages": [human_msg, response]}
-    
-    return {"messages": [await llm_with_tools.ainvoke([sys_msg] + state["messages"])]}
-
-def extract_final_answer(state: AgentState):
-    for msg in reversed(state["messages"]):
-        if isinstance(msg, AIMessage) and msg.content and not msg.tool_calls:
-            # Extract text properly (handles Gemini's list format)
-            answer_text = extract_content_as_string(msg.content)
-            res = {
-                "final_answer": answer_text,
-                "agent_answers": [{
-                    "index": state["question_index"],
-                    "question": state["question"],
-                    "answer": answer_text
-                }]
-            }
-            return res
-    return {
-        "final_answer": "Unable to generate an answer.",
-        "agent_answers": [{
-            "index": state["question_index"],
-            "question": state["question"],
-            "answer": "Unable to generate an answer."
-        }]
-    }
 
 
 def aggregate_responses(state: State, llm):

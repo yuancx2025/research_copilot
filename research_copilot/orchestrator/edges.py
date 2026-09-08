@@ -1,6 +1,6 @@
-from typing import Literal, List, Optional
+from typing import Literal, List
 from langgraph.types import Send
-from .state import State, AgentState
+from .state import State
 from research_copilot.config import settings as config
 from research_copilot.orchestrator.intent import available_agents
 
@@ -64,28 +64,17 @@ def route_to_agents(state: State) -> List[Send]:
         print("⚠ Warning: No query found for agent routing")
         return []
     
-    # Map intent names to agent node names
-    intent_to_agent = {
-        "arxiv": "arxiv_agent",
-        "youtube": "youtube_agent",
-        "github": "github_agent",
-        "web": "web_agent",
-        "local": "local_agent",
-        "notion": "notion_agent"
-    }
-    
-    # Check cache if enabled
     cache_enabled = state.get("cache_enabled", False) and getattr(config, 'ENABLE_RESEARCH_CACHE', False)
     cached_results = state.get("cached_results", {})
     
-    # Create Send objects for each agent in research_intent
     sends = []
     invalid_intents = []
     cache_hits = []
+    available = available_agents(state)
     
     for intent in research_intent:
-        agent_name = intent_to_agent.get(intent)
-        if agent_name and intent in available_agents(state):
+        agent_name = f"{intent}_agent"
+        if intent in available:
             # Check cache first if enabled
             cache_key = f"{intent}:{query.lower().strip()}"
             if intent != "notion" and cache_enabled and cache_key in cached_results:
@@ -119,7 +108,7 @@ def route_to_agents(state: State) -> List[Send]:
         print("⚠ Warning: No valid agents to route to, defaulting to ['local', 'web']")
         # Fallback to local and web agents
         for intent in [a for a in ("local", "web") if a in available_agents(state)]:
-            agent_name = intent_to_agent[intent]
+            agent_name = f"{intent}_agent"
             agent_state = {
                 "question": query,
                 "question_index": 0,

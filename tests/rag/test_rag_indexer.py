@@ -8,8 +8,8 @@ from langchain_core.documents import Document
 
 from rag.indexer import Indexer
 from rag.chunker import Chunker
-from db.vector_db_manager import VectorDbManager
-from db.parent_store_manager import ParentStoreManager
+from research_copilot.storage.qdrant_client import VectorDbManager
+from research_copilot.storage.parent_store import ParentStoreManager
 
 
 class TestIndexer:

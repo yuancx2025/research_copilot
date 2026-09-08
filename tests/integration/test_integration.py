@@ -12,12 +12,12 @@ Set environment variables or create a .env file:
 import pytest
 import os
 from unittest.mock import Mock
-from tools.base import SourceType
-from tools.local_tools import LocalToolkit
-from tools.arxiv_tools import ArxivToolkit
-from tools.github_tools import GitHubToolkit
-from tools.youtube_tools import YouTubeToolkit
-from tools.web_tools import WebToolkit
+from research_copilot.runtime.base_toolkit import SourceType
+from research_copilot.sources.local.tools import LocalToolkit
+from research_copilot.sources.arxiv.tools import ArxivToolkit
+from research_copilot.sources.github.tools import GitHubToolkit
+from research_copilot.sources.youtube.tools import YouTubeToolkit
+from research_copilot.sources.web.tools import WebToolkit
 
 
 @pytest.fixture
@@ -248,24 +248,30 @@ class TestToolRegistryIntegration:
     
     def test_registry_initialization(self, integration_config):
         """Test initializing registry with all toolkits."""
-        from tools.registry import initialize_registry
+        from research_copilot.core.source_setup import build_source_registry
+        from research_copilot.runtime.source_registry import SourceContext
         
-        registry = initialize_registry(integration_config)
+        registry = build_source_registry()
+        registry.ensure_toolkits(SourceContext(llm=None, config=integration_config, collection=object()))
         
-        available_sources = registry.list_available_sources()
+        available_sources = registry.available_ids()
         
-        assert SourceType.LOCAL in available_sources
-        assert SourceType.ARXIV in available_sources
+        assert "local" in available_sources
+        assert "arxiv" in available_sources
         print(f"\n✓ Registry initialized with {len(available_sources)} sources")
-        print(f"  Available: {[s.value for s in available_sources]}")
+        print(f"  Available: {available_sources}")
     
     def test_get_all_tools(self, integration_config):
         """Test getting all tools from registry."""
-        from tools.registry import initialize_registry
+        from research_copilot.core.source_setup import build_source_registry
+        from research_copilot.runtime.source_registry import SourceContext
         
-        registry = initialize_registry(integration_config)
+        registry = build_source_registry()
+        registry.ensure_toolkits(SourceContext(llm=None, config=integration_config, collection=object()))
         
-        tools = registry.get_all_tools()
+        tools = []
+        for source_id in registry.available_ids():
+            tools.extend(registry.tools_for(source_id))
         
         assert len(tools) > 0
         print(f"\n✓ Registry provides {len(tools)} tools")

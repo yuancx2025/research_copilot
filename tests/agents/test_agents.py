@@ -8,13 +8,21 @@ import pytest
 from unittest.mock import Mock, MagicMock, patch, call
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from agents.base_agent import BaseAgent
-from agents.local_rag_agent import LocalRAGAgent
-from agents.arxiv_agent import ArxivAgent
-from agents.youtube_agent import YouTubeAgent
-from agents.github_agent import GitHubAgent
-from agents.web_agent import WebAgent
-from tools.base import SourceType
+from research_copilot.runtime.base_agent import BaseAgent
+from research_copilot.sources.local.agent import LocalRAGAgent
+from research_copilot.sources.arxiv.agent import ArxivAgent
+from research_copilot.sources.youtube.agent import YouTubeAgent
+from research_copilot.sources.github.agent import GitHubAgent
+from research_copilot.sources.web.agent import WebAgent
+from tests.agent_factories import local_agent, arxiv_agent, youtube_agent, github_agent, web_agent
+
+
+def _citation(agent, tool_name, tool_result):
+    item = tool_result[0] if isinstance(tool_result, list) else tool_result
+    citation = agent.parse_citation(tool_name, {}, item)
+    return citation.to_dict() if citation else None
+
+from research_copilot.runtime.base_toolkit import SourceType
 
 
 @pytest.fixture
@@ -63,15 +71,14 @@ class TestLocalRAGAgent:
     
     def test_initialization(self, mock_llm, mock_config, mock_collection):
         """Test agent initialization"""
-        agent = LocalRAGAgent(mock_llm, mock_collection, mock_config)
+        agent = local_agent(mock_llm, mock_collection, mock_config)
         
         assert agent.source_type == SourceType.LOCAL
-        assert agent.collection == mock_collection
         assert len(agent.tools) == 2
     
     def test_get_system_prompt(self, mock_llm, mock_config, mock_collection):
         """Test that system prompt is returned"""
-        agent = LocalRAGAgent(mock_llm, mock_collection, mock_config)
+        agent = local_agent(mock_llm, mock_collection, mock_config)
         prompt = agent.get_system_prompt()
         
         assert isinstance(prompt, str)
@@ -80,7 +87,7 @@ class TestLocalRAGAgent:
     
     def test_create_agent_subgraph(self, mock_llm, mock_config, mock_collection):
         """Test subgraph creation"""
-        agent = LocalRAGAgent(mock_llm, mock_collection, mock_config)
+        agent = local_agent(mock_llm, mock_collection, mock_config)
         subgraph = agent.create_agent_subgraph()
         
         assert subgraph is not None
@@ -88,10 +95,10 @@ class TestLocalRAGAgent:
     
     def test_extract_answer_with_citations(self, mock_llm, mock_config, mock_collection):
         """Test answer extraction with citations"""
-        agent = LocalRAGAgent(mock_llm, mock_collection, mock_config)
+        agent = local_agent(mock_llm, mock_collection, mock_config)
         
         # Create mock state with messages
-        from rag_agent.graph_state import AgentState
+        from research_copilot.runtime.agent_state import AgentState
         state = AgentState(
             question="What is machine learning?",
             question_index=0,
@@ -122,7 +129,7 @@ class TestLocalRAGAgent:
     
     def test_citation_extraction(self, mock_llm, mock_config, mock_collection):
         """Test citation extraction from tool results"""
-        agent = LocalRAGAgent(mock_llm, mock_collection, mock_config)
+        agent = local_agent(mock_llm, mock_collection, mock_config)
         
         # Test with list of results
         tool_result = [
@@ -130,11 +137,7 @@ class TestLocalRAGAgent:
             {"content": "Content 2", "source": "doc2.pdf", "parent_id": "p2"}
         ]
         
-        citation = agent._parse_tool_result_to_citation(
-            "search_local_documents",
-            {},
-            tool_result
-        )
+        citation = _citation(agent, "search_local_documents", tool_result)
         
         assert citation is not None
         assert citation["source_type"] == "local"
@@ -146,14 +149,14 @@ class TestArxivAgent:
     
     def test_initialization(self, mock_llm, mock_config):
         """Test agent initialization"""
-        agent = ArxivAgent(mock_llm, mock_config)
+        agent = arxiv_agent(mock_llm, mock_config)
         
         assert agent.source_type == SourceType.ARXIV
         assert len(agent.tools) == 3
     
     def test_get_system_prompt(self, mock_llm, mock_config):
         """Test that system prompt is returned"""
-        agent = ArxivAgent(mock_llm, mock_config)
+        agent = arxiv_agent(mock_llm, mock_config)
         prompt = agent.get_system_prompt()
         
         assert isinstance(prompt, str)
@@ -162,7 +165,7 @@ class TestArxivAgent:
     
     def test_create_agent_subgraph(self, mock_llm, mock_config):
         """Test subgraph creation"""
-        agent = ArxivAgent(mock_llm, mock_config)
+        agent = arxiv_agent(mock_llm, mock_config)
         subgraph = agent.create_agent_subgraph()
         
         assert subgraph is not None
@@ -170,7 +173,7 @@ class TestArxivAgent:
     
     def test_citation_extraction(self, mock_llm, mock_config):
         """Test citation extraction from ArXiv results"""
-        agent = ArxivAgent(mock_llm, mock_config)
+        agent = arxiv_agent(mock_llm, mock_config)
         
         # Test with search result
         tool_result = [{
@@ -182,11 +185,7 @@ class TestArxivAgent:
             "abstract": "Test abstract"
         }]
         
-        citation = agent._parse_tool_result_to_citation(
-            "search_arxiv",
-            {},
-            tool_result
-        )
+        citation = _citation(agent, "search_arxiv", tool_result)
         
         assert citation is not None
         assert citation["source_type"] == "arxiv"
@@ -199,14 +198,14 @@ class TestYouTubeAgent:
     
     def test_initialization(self, mock_llm, mock_config):
         """Test agent initialization"""
-        agent = YouTubeAgent(mock_llm, mock_config)
+        agent = youtube_agent(mock_llm, mock_config)
         
         assert agent.source_type == SourceType.YOUTUBE
         assert len(agent.tools) == 3
     
     def test_get_system_prompt(self, mock_llm, mock_config):
         """Test that system prompt is returned"""
-        agent = YouTubeAgent(mock_llm, mock_config)
+        agent = youtube_agent(mock_llm, mock_config)
         prompt = agent.get_system_prompt()
         
         assert isinstance(prompt, str)
@@ -215,7 +214,7 @@ class TestYouTubeAgent:
     
     def test_create_agent_subgraph(self, mock_llm, mock_config):
         """Test subgraph creation"""
-        agent = YouTubeAgent(mock_llm, mock_config)
+        agent = youtube_agent(mock_llm, mock_config)
         subgraph = agent.create_agent_subgraph()
         
         assert subgraph is not None
@@ -223,7 +222,7 @@ class TestYouTubeAgent:
     
     def test_citation_extraction_video(self, mock_llm, mock_config):
         """Test citation extraction from video search results"""
-        agent = YouTubeAgent(mock_llm, mock_config)
+        agent = youtube_agent(mock_llm, mock_config)
         
         tool_result = [{
             "video_id": "dQw4w9WgXcQ",
@@ -233,11 +232,7 @@ class TestYouTubeAgent:
             "description": "Test description"
         }]
         
-        citation = agent._parse_tool_result_to_citation(
-            "search_youtube",
-            {},
-            tool_result
-        )
+        citation = _citation(agent, "search_youtube", tool_result)
         
         assert citation is not None
         assert citation["source_type"] == "youtube"
@@ -246,7 +241,7 @@ class TestYouTubeAgent:
     
     def test_citation_extraction_transcript(self, mock_llm, mock_config):
         """Test citation extraction from transcript results"""
-        agent = YouTubeAgent(mock_llm, mock_config)
+        agent = youtube_agent(mock_llm, mock_config)
         
         tool_result = {
             "video_id": "dQw4w9WgXcQ",
@@ -256,15 +251,10 @@ class TestYouTubeAgent:
             "language": "en"
         }
         
-        citation = agent._parse_tool_result_to_citation(
-            "get_youtube_transcript",
-            {},
-            tool_result
-        )
+        citation = _citation(agent, "get_youtube_transcript", tool_result)
         
-        assert citation is not None
-        assert citation["source_type"] == "youtube"
-        assert "transcript" in citation["title"].lower()
+        # Transcript payloads are not cited; only search/video results are.
+        assert citation is None
 
 
 class TestGitHubAgent:
@@ -272,14 +262,14 @@ class TestGitHubAgent:
     
     def test_initialization(self, mock_llm, mock_config):
         """Test agent initialization"""
-        agent = GitHubAgent(mock_llm, mock_config)
+        agent = github_agent(mock_llm, mock_config)
         
         assert agent.source_type == SourceType.GITHUB
         assert len(agent.tools) == 4
     
     def test_get_system_prompt(self, mock_llm, mock_config):
         """Test that system prompt is returned"""
-        agent = GitHubAgent(mock_llm, mock_config)
+        agent = github_agent(mock_llm, mock_config)
         prompt = agent.get_system_prompt()
         
         assert isinstance(prompt, str)
@@ -288,7 +278,7 @@ class TestGitHubAgent:
     
     def test_create_agent_subgraph(self, mock_llm, mock_config):
         """Test subgraph creation"""
-        agent = GitHubAgent(mock_llm, mock_config)
+        agent = github_agent(mock_llm, mock_config)
         subgraph = agent.create_agent_subgraph()
         
         assert subgraph is not None
@@ -296,7 +286,7 @@ class TestGitHubAgent:
     
     def test_citation_extraction_repo(self, mock_llm, mock_config):
         """Test citation extraction from repository search"""
-        agent = GitHubAgent(mock_llm, mock_config)
+        agent = github_agent(mock_llm, mock_config)
         
         tool_result = [{
             "full_name": "owner/repo",
@@ -306,11 +296,7 @@ class TestGitHubAgent:
             "language": "Python"
         }]
         
-        citation = agent._parse_tool_result_to_citation(
-            "search_github",
-            {},
-            tool_result
-        )
+        citation = _citation(agent, "search_github", tool_result)
         
         assert citation is not None
         assert citation["source_type"] == "github"
@@ -319,7 +305,7 @@ class TestGitHubAgent:
     
     def test_citation_extraction_readme(self, mock_llm, mock_config):
         """Test citation extraction from README"""
-        agent = GitHubAgent(mock_llm, mock_config)
+        agent = github_agent(mock_llm, mock_config)
         
         tool_result = {
             "repo": "owner/repo",
@@ -328,11 +314,7 @@ class TestGitHubAgent:
             "url": "https://github.com/owner/repo/blob/main/README.md"
         }
         
-        citation = agent._parse_tool_result_to_citation(
-            "get_github_readme",
-            {},
-            tool_result
-        )
+        citation = _citation(agent, "get_github_readme", tool_result)
         
         assert citation is not None
         assert citation["source_type"] == "github"
@@ -344,7 +326,7 @@ class TestWebAgent:
     
     def test_initialization(self, mock_llm, mock_config):
         """Test agent initialization"""
-        agent = WebAgent(mock_llm, mock_config)
+        agent = web_agent(mock_llm, mock_config)
         
         assert agent.source_type == SourceType.WEB
         # Web agent may have 0 tools if API key not configured
@@ -352,7 +334,7 @@ class TestWebAgent:
     
     def test_get_system_prompt(self, mock_llm, mock_config):
         """Test that system prompt is returned"""
-        agent = WebAgent(mock_llm, mock_config)
+        agent = web_agent(mock_llm, mock_config)
         prompt = agent.get_system_prompt()
         
         assert isinstance(prompt, str)
@@ -361,7 +343,7 @@ class TestWebAgent:
     
     def test_create_agent_subgraph(self, mock_llm, mock_config):
         """Test subgraph creation"""
-        agent = WebAgent(mock_llm, mock_config)
+        agent = web_agent(mock_llm, mock_config)
         subgraph = agent.create_agent_subgraph()
         
         assert subgraph is not None
@@ -369,7 +351,7 @@ class TestWebAgent:
     
     def test_citation_extraction_search(self, mock_llm, mock_config):
         """Test citation extraction from web search"""
-        agent = WebAgent(mock_llm, mock_config)
+        agent = web_agent(mock_llm, mock_config)
         
         tool_result = [{
             "title": "Test Article",
@@ -378,11 +360,7 @@ class TestWebAgent:
             "score": 0.95
         }]
         
-        citation = agent._parse_tool_result_to_citation(
-            "web_search",
-            {},
-            tool_result
-        )
+        citation = _citation(agent, "web_search", tool_result)
         
         assert citation is not None
         assert citation["source_type"] == "web"
@@ -390,7 +368,7 @@ class TestWebAgent:
     
     def test_citation_extraction_webpage(self, mock_llm, mock_config):
         """Test citation extraction from webpage extraction"""
-        agent = WebAgent(mock_llm, mock_config)
+        agent = web_agent(mock_llm, mock_config)
         
         tool_result = {
             "url": "https://example.com/article",
@@ -399,11 +377,7 @@ class TestWebAgent:
             "word_count": 500
         }
         
-        citation = agent._parse_tool_result_to_citation(
-            "extract_webpage",
-            {},
-            tool_result
-        )
+        citation = _citation(agent, "extract_webpage", tool_result)
         
         assert citation is not None
         assert citation["source_type"] == "web"
@@ -416,11 +390,11 @@ class TestAgentIntegration:
     def test_all_agents_initializable(self, mock_llm, mock_config, mock_collection):
         """Test that all agents can be initialized"""
         agents = [
-            LocalRAGAgent(mock_llm, mock_collection, mock_config),
-            ArxivAgent(mock_llm, mock_config),
-            YouTubeAgent(mock_llm, mock_config),
-            GitHubAgent(mock_llm, mock_config),
-            WebAgent(mock_llm, mock_config),
+            local_agent(mock_llm, mock_collection, mock_config),
+            arxiv_agent(mock_llm, mock_config),
+            youtube_agent(mock_llm, mock_config),
+            github_agent(mock_llm, mock_config),
+            web_agent(mock_llm, mock_config),
         ]
         
         for agent in agents:
@@ -431,11 +405,11 @@ class TestAgentIntegration:
     def test_agent_subgraph_creation(self, mock_llm, mock_config, mock_collection):
         """Test that all agents can create subgraphs"""
         agents = [
-            LocalRAGAgent(mock_llm, mock_collection, mock_config),
-            ArxivAgent(mock_llm, mock_config),
-            YouTubeAgent(mock_llm, mock_config),
-            GitHubAgent(mock_llm, mock_config),
-            WebAgent(mock_llm, mock_config),
+            local_agent(mock_llm, mock_collection, mock_config),
+            arxiv_agent(mock_llm, mock_config),
+            youtube_agent(mock_llm, mock_config),
+            github_agent(mock_llm, mock_config),
+            web_agent(mock_llm, mock_config),
         ]
         
         for agent in agents:
@@ -445,17 +419,17 @@ class TestAgentIntegration:
     def test_citation_format_consistency(self, mock_llm, mock_config, mock_collection):
         """Test that all agents return consistent citation formats"""
         agents = [
-            LocalRAGAgent(mock_llm, mock_collection, mock_config),
-            ArxivAgent(mock_llm, mock_config),
-            YouTubeAgent(mock_llm, mock_config),
-            GitHubAgent(mock_llm, mock_config),
-            WebAgent(mock_llm, mock_config),
+            local_agent(mock_llm, mock_collection, mock_config),
+            arxiv_agent(mock_llm, mock_config),
+            youtube_agent(mock_llm, mock_config),
+            github_agent(mock_llm, mock_config),
+            web_agent(mock_llm, mock_config),
         ]
         
         for agent in agents:
             # Create a simple test result
             test_result = {"url": "https://test.com", "title": "Test"}
-            citation = agent._parse_tool_result_to_citation("test_tool", {}, test_result)
+            citation = _citation(agent, "test_tool", test_result)
             
             if citation:  # Some agents may return None for invalid results
                 assert "source_type" in citation

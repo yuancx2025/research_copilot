@@ -8,12 +8,13 @@ import pytest
 from unittest.mock import Mock, MagicMock, patch
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from agents.local_rag_agent import LocalRAGAgent
-from agents.arxiv_agent import ArxivAgent
-from agents.youtube_agent import YouTubeAgent
-from agents.github_agent import GitHubAgent
-from agents.web_agent import WebAgent
-from rag_agent.graph_state import AgentState
+from research_copilot.sources.local.agent import LocalRAGAgent
+from research_copilot.sources.arxiv.agent import ArxivAgent
+from research_copilot.sources.youtube.agent import YouTubeAgent
+from research_copilot.sources.github.agent import GitHubAgent
+from research_copilot.sources.web.agent import WebAgent
+from tests.agent_factories import local_agent, arxiv_agent, youtube_agent, github_agent, web_agent
+from research_copilot.runtime.agent_state import AgentState
 
 
 @pytest.fixture
@@ -88,7 +89,7 @@ class TestAgentExecution:
     
     def test_local_rag_agent_execution(self, mock_llm_with_tools, mock_config, mock_collection):
         """Test LocalRAGAgent execution"""
-        agent = LocalRAGAgent(mock_llm_with_tools, mock_collection, mock_config)
+        agent = local_agent(mock_llm_with_tools, mock_collection, mock_config)
         
         # Create state with question
         state = AgentState(
@@ -106,7 +107,7 @@ class TestAgentExecution:
     
     def test_arxiv_agent_execution(self, mock_llm_with_tools, mock_config):
         """Test ArxivAgent execution"""
-        agent = ArxivAgent(mock_llm_with_tools, mock_config)
+        agent = arxiv_agent(mock_llm_with_tools, mock_config)
         
         # Test subgraph creation
         subgraph = agent.create_agent_subgraph()
@@ -118,7 +119,7 @@ class TestAgentExecution:
     
     def test_youtube_agent_execution(self, mock_llm_with_tools, mock_config):
         """Test YouTubeAgent execution"""
-        agent = YouTubeAgent(mock_llm_with_tools, mock_config)
+        agent = youtube_agent(mock_llm_with_tools, mock_config)
         
         # Test subgraph creation
         subgraph = agent.create_agent_subgraph()
@@ -130,7 +131,7 @@ class TestAgentExecution:
     
     def test_github_agent_execution(self, mock_llm_with_tools, mock_config):
         """Test GitHubAgent execution"""
-        agent = GitHubAgent(mock_llm_with_tools, mock_config)
+        agent = github_agent(mock_llm_with_tools, mock_config)
         
         # Test subgraph creation
         subgraph = agent.create_agent_subgraph()
@@ -142,7 +143,7 @@ class TestAgentExecution:
     
     def test_web_agent_execution(self, mock_llm_with_tools, mock_config):
         """Test WebAgent execution"""
-        agent = WebAgent(mock_llm_with_tools, mock_config)
+        agent = web_agent(mock_llm_with_tools, mock_config)
         
         # Test subgraph creation
         subgraph = agent.create_agent_subgraph()
@@ -154,7 +155,7 @@ class TestAgentExecution:
     
     def test_answer_extraction_with_tool_calls(self, mock_llm_with_tools, mock_config, mock_collection):
         """Test answer extraction when tools were called"""
-        agent = LocalRAGAgent(mock_llm_with_tools, mock_collection, mock_config)
+        agent = local_agent(mock_llm_with_tools, mock_collection, mock_config)
         
         # Create state with tool calls and results
         state = AgentState(
@@ -188,7 +189,7 @@ class TestAgentExecution:
     
     def test_answer_extraction_no_tool_calls(self, mock_llm_with_tools, mock_config, mock_collection):
         """Test answer extraction when no tools were called"""
-        agent = LocalRAGAgent(mock_llm_with_tools, mock_collection, mock_config)
+        agent = local_agent(mock_llm_with_tools, mock_collection, mock_config)
         
         # Create state without tool calls
         state = AgentState(
@@ -208,7 +209,7 @@ class TestAgentExecution:
     
     def test_answer_extraction_no_answer(self, mock_llm_with_tools, mock_config, mock_collection):
         """Test answer extraction when no answer is found"""
-        agent = LocalRAGAgent(mock_llm_with_tools, mock_collection, mock_config)
+        agent = local_agent(mock_llm_with_tools, mock_collection, mock_config)
         
         # Create state with only tool calls, no final answer
         state = AgentState(

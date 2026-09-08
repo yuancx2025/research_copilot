@@ -1,6 +1,6 @@
 """Single configuration source shared by local and GCP settings."""
 import os
-from research_copilot.tools.mcp.config import normalize_command
+from research_copilot.runtime.mcp.config import normalize_command
 
 USE_GITHUB_MCP = os.getenv('USE_GITHUB_MCP', 'false').lower() == 'true'
 USE_WEB_SEARCH_MCP = os.getenv('USE_WEB_SEARCH_MCP', 'false').lower() == 'true'

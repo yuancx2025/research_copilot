@@ -8,8 +8,8 @@ from research_copilot.storage.research_cache import ResearchCache
 from research_copilot.rag.chunker import Chunker
 from research_copilot.rag.reranker import Reranker
 from research_copilot.rag.retriever import Retriever
-from research_copilot.tools.registry import initialize_registry
-from research_copilot.tools.base import SourceType
+from research_copilot.core.source_setup import build_source_registry
+from research_copilot.runtime.source_registry import SourceContext
 from research_copilot.orchestrator.graph import create_agent_graph
 from research_copilot.storage.cloud_storage import (
     initialize_cloud_storage_sync,
@@ -41,7 +41,6 @@ def create_llm() -> BaseChatModel:
             google_api_key=api_key
         )
     else:
-        # Default to Ollama
         from langchain_ollama import ChatOllama
         model_name = getattr(config, 'LLM_MODEL', 'qwen3:4b-instruct-2507-q4_K_M')
         temperature = getattr(config, 'LLM_TEMPERATURE', 0)
@@ -63,8 +62,19 @@ class RAGSystem:
         self.research_cache = None
         self.gcs_sync = None
         
+    def _source_context(self, notion_service=None):
+        extras = {}
+        if notion_service:
+            extras["notion_service"] = notion_service
+        return SourceContext(
+            llm=self.llm,
+            config=config,
+            collection=self.collection,
+            retriever=self.retriever,
+            extras=extras,
+        )
+
     def initialize(self):
-        # Sync from Cloud Storage on startup (if on GCP)
         self.gcs_sync = initialize_cloud_storage_sync()
         if self.gcs_sync:
             sync_all_from_gcs(
@@ -73,7 +83,6 @@ class RAGSystem:
                 config.MARKDOWN_DIR,
                 self.gcs_sync
             )
-            # Register shutdown handler to sync to GCS
             atexit.register(
                 sync_all_to_gcs,
                 config.QDRANT_DB_PATH,
@@ -84,7 +93,6 @@ class RAGSystem:
         self.vector_db.create_collection(self.collection_name)
         collection = self.vector_db.get_collection(self.collection_name)
         
-        # Create LLM instance using the helper function
         llm = create_llm()
         self.llm = llm
         self.collection = collection
@@ -92,7 +100,6 @@ class RAGSystem:
         self._graph_generation = None
         self._mcp_prepared = False
         
-        # Initialize LLM for reranking if enabled
         if config.ENABLE_RERANKING:
             try:
                 reranker_llm = create_llm()
@@ -110,7 +117,6 @@ class RAGSystem:
                 print(f"⚠ Warning: Failed to initialize reranker: {e}")
                 self.reranker = None
         
-        # Initialize retriever with reranker
         self.retriever = Retriever(
             collection=collection,
             parent_store=self.parent_store,
@@ -118,25 +124,16 @@ class RAGSystem:
             enable_reranking=config.ENABLE_RERANKING and self.reranker is not None
         )
         
-        # Initialize research cache if enabled
         if config.ENABLE_RESEARCH_CACHE:
             self.research_cache = ResearchCache()
             print("✓ Research cache initialized")
         
-        # Initialize tool registry with config
-        self.tool_registry = initialize_registry(config)
-        
-        # Set collection for local toolkit (needs collection for document search)
-        local_toolkit = self.tool_registry.get_toolkit(SourceType.LOCAL)
-        if local_toolkit:
-            local_toolkit.set_collection(collection)
-            # Also set retriever if local toolkit supports it
-            if hasattr(local_toolkit, 'set_retriever'):
-                local_toolkit.set_retriever(self.retriever)
-        
-        # Create orchestrator graph with multi-agent routing
-        # Pass research cache if available
-        self.agent_graph = create_agent_graph(llm, config, collection, research_cache=self.research_cache)
+        self.tool_registry = build_source_registry()
+        self.tool_registry.ensure_toolkits(self._source_context())
+        self.agent_graph = create_agent_graph(
+            llm, config, collection, research_cache=self.research_cache,
+            tool_registry=self.tool_registry, retriever=self.retriever,
+        )
     
     async def prepare_run(self, notion_service=None):
         """Initialize tools and rebuild only when the connection generation changes."""
@@ -147,13 +144,14 @@ class RAGSystem:
             try:
                 await notion_service.prepare()
             except Exception:
-                # Notion outages must not disable unrelated sources; explicit Notion
-                # requests are rejected by ChatInterface when no Notion agent is ready.
                 generation = None
         if not self._mcp_prepared or generation != self._graph_generation:
-            self.agent_graph = create_agent_graph(self.llm, config, self.collection,
+            self.agent_graph = create_agent_graph(
+                self.llm, config, self.collection,
                 research_cache=self.research_cache, tool_registry=self.tool_registry,
-                notion_service=notion_service if generation else None)
+                notion_service=notion_service if generation else None,
+                retriever=self.retriever,
+            )
             self.thread_id = str(uuid.uuid4())
             self._graph_generation = generation
             self._mcp_prepared = True

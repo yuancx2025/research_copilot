@@ -1,7 +1,16 @@
 """Small local submission ledger. Pending writes after a crash are ambiguous."""
 import sqlite3
 from pathlib import Path
-from research_copilot.notion.schemas import ExportResult
+from typing import Literal
+from pydantic import BaseModel
+
+
+class ExportResult(BaseModel):
+    status: Literal['success', 'failure', 'unknown', 'pending']
+    page_id: str | None = None
+    url: str | None = None
+    message: str = ''
+
 
 PENDING = ExportResult(status='pending', message='Export is already in progress.')
 STALE_UNKNOWN = ExportResult(

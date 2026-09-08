@@ -84,7 +84,7 @@ async def test_disconnected_explicit_notion_request_does_not_run_research():
         llm=object(),
         notion_service=None,
         _graph_generation=None,
-        tool_registry=SimpleNamespace(list_available_sources=lambda: []),
+        tool_registry=SimpleNamespace(available_ids=lambda: []),
         agent_graph=SimpleNamespace(ainvoke=None),
         get_config=lambda: {},
     )
@@ -106,7 +106,7 @@ async def test_ordinary_research_ignores_idiomatic_notion():
         llm=object(),
         notion_service=None,
         _graph_generation=None,
-        tool_registry=SimpleNamespace(list_available_sources=lambda: []),
+        tool_registry=SimpleNamespace(available_ids=lambda: []),
         agent_graph=SimpleNamespace(ainvoke=ainvoke),
         get_config=lambda: {},
     )

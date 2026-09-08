@@ -52,16 +52,18 @@ flowchart TD
 **Layout**
 ```
 research_copilot/
-├── agents/          # Source agents, including Notion
-├── orchestrator/    # LangGraph routing, intent, aggregation
-├── core/            # RAG, chat interface, document management
-├── rag/             # Chunking, retrieval, reranking
-├── storage/         # Qdrant, parent store, Keychain OAuth, export ledger
-├── tools/           # Toolkits, registry, MCP client/adapter/OAuth
-├── notion/          # Draft generation, REST publish, MCP publish, Markdown renderer
+├── app/             # FastAPI factory, OAuth callback routes
 ├── ui/              # Gradio UI
-├── config/          # Shared local/GCP settings, including MCP
-└── app/             # FastAPI factory, OAuth callback routes
+├── orchestrator/    # LangGraph routing, intent, aggregation
+├── sources/         # One package per source (agent + tools + citations)
+│   ├── notion/      # Notion research, MCP, REST publish, OAuth identity
+│   ├── github|web|arxiv|youtube|local/
+├── runtime/         # Agents, toolkits, MCP, OAuth lifecycle, source registry
+├── study_plans/     # Draft generation (Notion only publishes)
+├── rag/             # Chunking, retrieval, reranking, document ingest
+├── storage/         # Qdrant, parent store, Keychain, export ledger
+├── core/            # RAGSystem, ChatInterface, source registration
+└── config/          # Shared local/GCP settings, including MCP
 ```
 
 ## Features
@@ -157,17 +159,17 @@ pip install -e ".[test]"
 pytest tests/
 ```
 
-Stdio MCP tests use `tests/mcp/fixture_server.py`. OAuth and HTTP callback tests use mocked responses.
+Stdio MCP tests use `tests/runtime/mcp/fixture_server.py`. OAuth and HTTP callback tests use mocked responses.
 
 Opt-in live Notion smoke test (reads a page you choose; exports only with a second flag):
 
 ```bash
 # After connecting in the UI:
-NOTION_LIVE_TEST=1 NOTION_LIVE_PAGE_ID=<page-id-or-url> pytest tests/notion/test_live_smoke.py -m live
+NOTION_LIVE_TEST=1 NOTION_LIVE_PAGE_ID=<page-id-or-url> pytest tests/sources/notion/test_live_smoke.py -m live
 
 # Create a page only after you explicitly opt in:
 NOTION_LIVE_TEST=1 NOTION_LIVE_EXPORT=1 NOTION_LIVE_PAGE_ID=<page-id> \
-  NOTION_LIVE_PARENT_PAGE_ID=<destination-page-id> pytest tests/notion/test_live_smoke.py -m live
+  NOTION_LIVE_PARENT_PAGE_ID=<destination-page-id> pytest tests/sources/notion/test_live_smoke.py -m live
 ```
 
 Record live verification separately from automated results. The live test does not disconnect your Keychain credentials.

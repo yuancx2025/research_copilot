@@ -38,9 +38,10 @@ try:
 except ImportError:
     OLLAMA_AVAILABLE = False
 
-from orchestrator.graph import create_agent_graph
-from orchestrator.state import State
-from db.vector_db_manager import VectorDbManager
+from research_copilot.orchestrator.graph import create_agent_graph
+from research_copilot.orchestrator.state import State
+from research_copilot.storage.qdrant_client import VectorDbManager
+from research_copilot.core.source_setup import build_source_registry
 
 
 def create_llm(provider=None):
@@ -128,7 +129,8 @@ def graph_config():
 @pytest.fixture
 def orchestrator_graph(real_llm, real_config, real_collection):
     """Create orchestrator graph for testing."""
-    return create_agent_graph(real_llm, real_config, real_collection)
+    registry = build_source_registry()
+    return create_agent_graph(real_llm, real_config, real_collection, tool_registry=registry)
 
 
 @pytest.mark.integration
