@@ -38,10 +38,10 @@ pymupdf4llm>=0.0.5  # For advanced PDF parsing features
 # MCP / app-server stack (Python 3.11 compatibility baseline; keep MCP below v2)
 mcp==1.25.0
 langchain-mcp-adapters==0.2.1
-gradio==6.2.0
 httpx==0.28.1
 fastapi==0.128.0
 uvicorn==0.40.0
+python-multipart==0.0.21
 keyring==25.7.0
 itsdangerous==2.2.0
 

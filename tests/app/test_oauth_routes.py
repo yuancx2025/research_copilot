@@ -8,13 +8,14 @@ from research_copilot.app.main import create_app
 from tests.runtime.auth.test_oauth import MemoryStore, OAuthServer, factory, ConnectionService
 
 
-def _app(service):
+def _app(service, frontend_url=''):
     config = SimpleNamespace(
         NOTION_BACKEND='mcp',
         OAUTH_BASE_URL='http://127.0.0.1:7860',
         OAUTH_TIMEOUT=300,
+        FRONTEND_URL=frontend_url,
     )
-    return create_app(config, connection=service, mount_ui=False)
+    return create_app(config, connection=service, research_factory=lambda **_: None)
 
 
 @pytest.fixture(autouse=True)
@@ -61,8 +62,10 @@ async def test_callback_mismatch_replay_and_disconnect():
         assert mismatch.status_code == 400
         wrong_state = client.get('/oauth/notion/callback', params={'code': 'test-code', 'state': 'nope'})
         assert wrong_state.status_code == 400
-        success = client.get('/oauth/notion/callback', params={'code': 'test-code', 'state': state})
-        assert success.status_code in (303, 307, 200)
+        success = client.get('/oauth/notion/callback', params={'code': 'test-code', 'state': state},
+                             follow_redirects=False)
+        assert success.status_code == 303
+        assert success.headers['location'] == '/oauth/done'
         replay = client.get('/oauth/notion/callback', params={'code': 'test-code', 'state': state})
         assert replay.status_code == 400
         status = client.get('/oauth/notion/status').json()

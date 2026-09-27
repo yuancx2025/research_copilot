@@ -14,11 +14,10 @@ Main Modules:
 - rag: Advanced retrieval and reranking
 - tools: MCP and native tool implementations
 - storage: Vector DB and caching infrastructure
-- ui: Gradio-based user interface
-- app: Main application entry points
+- app: FastAPI JSON/SSE API that also serves the React frontend (frontend/)
 
 Usage:
-    # Run the Gradio UI
+    # Run the API and the built React app
     python -m research_copilot.app.main
     
     # Or use the orchestrator directly

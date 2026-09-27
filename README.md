@@ -2,7 +2,7 @@
 
 A local, single-user research assistant that searches local documents, academic papers, the web, GitHub, YouTube, and a connected Notion workspace. After research, you can preview a study plan and export that exact draft to a Notion page you choose.
 
-This release is a Gradio application mounted under FastAPI at `/ui`. Notion OAuth binds to `127.0.0.1` only.
+The UI is a React app (`frontend/`) served by the same FastAPI process that exposes the JSON/SSE API under `/api`. Notion OAuth binds to `127.0.0.1` only.
 
 ## Architecture
 
@@ -49,11 +49,13 @@ flowchart TD
 - Citations from Notion require a fetched page (title, URL, and content). Search hits alone are not treated as evidence.
 - Study-plan publishing is not part of the research graph. Preview generates a draft; Export publishes the displayed Markdown without generating again.
 
+- Research runs stream progress to the browser over Server-Sent Events (sources selected, each agent finishing, then the answer).
+
 **Layout**
 ```
+frontend/            # React + TypeScript (Vite): Research, Chat, Documents, Notion study plans
 research_copilot/
-├── app/             # FastAPI factory, OAuth callback routes
-├── ui/              # Gradio UI
+├── app/             # FastAPI factory, /api routers, SSE, security, OAuth routes, static serving
 ├── orchestrator/    # LangGraph routing, intent, aggregation
 ├── sources/         # One package per source (agent + tools + citations)
 │   ├── notion/      # Notion research, MCP, REST publish, OAuth identity
@@ -62,7 +64,7 @@ research_copilot/
 ├── study_plans/     # Draft generation (Notion only publishes)
 ├── rag/             # Chunking, retrieval, reranking, document ingest
 ├── storage/         # Qdrant, parent store, Keychain, export ledger
-├── core/            # RAGSystem, ChatInterface, source registration
+├── core/            # RAGSystem, ChatInterface, ResearchService (run, drafts), source registration
 └── config/          # Shared local/GCP settings, including MCP
 ```
 
@@ -79,6 +81,7 @@ research_copilot/
 ### Prerequisites
 
 - Python 3.11 (compatibility baseline for this MCP stack)
+- Node.js 20+ to build or develop the frontend
 - macOS Keychain if you use Notion MCP OAuth
 - API keys for the LLM and any non-Notion sources you enable
 
@@ -127,24 +130,38 @@ OAUTH_BASE_URL=http://127.0.0.1:7860
 # USE_WEB_SEARCH_MCP=false
 ```
 
-`OAUTH_BASE_URL` must be `http://127.0.0.1:<port>` with no path. Gradio sharing and hosted multi-user OAuth are out of scope for this release.
+`OAUTH_BASE_URL` must be `http://127.0.0.1:<port>` with no path. Hosted multi-user OAuth is out of scope for this release.
 
 ### Launch
 
-Both entrypoints use the same FastAPI application factory:
+Build the frontend once, then start the server. Both entrypoints use the same FastAPI application factory:
 
 ```bash
+cd frontend && npm install && npm run build && cd ..
 python -m research_copilot.app.main
 # or
 python app.py
 ```
 
-Open `http://127.0.0.1:7860/ui`.
+Open `http://127.0.0.1:7860`. The old `/ui` path redirects there.
+
+### Frontend development
+
+Run the backend as above, then start Vite with hot reload:
+
+```bash
+cd frontend
+npm run dev        # http://127.0.0.1:5173, proxies /api and /oauth/notion to :7860
+npm test           # Vitest
+npm run typecheck
+```
+
+Use `127.0.0.1`, not `localhost`: the backend only accepts that host in OAuth mode. The dev proxy rewrites the `Origin` header so the backend's same-origin write check still passes. To land back on the dev server after Notion consent, add `FRONTEND_URL=http://127.0.0.1:5173` to `.env`. The OAuth callback itself always goes to `OAUTH_BASE_URL`, so keep that on the backend port.
 
 ## Using Notion
 
 1. Set `NOTION_BACKEND=mcp` and start the app on `127.0.0.1`.
-2. In the Research tab, click **Connect Notion** and complete consent in the browser.
+2. In the Research tab, click **Connect Notion** and complete consent in the new tab. The tab closes itself when the connection finishes.
 3. Restarting the app reuses Keychain credentials while the grant remains valid. You should not see another consent screen until access expires or you disconnect.
 4. Ask a question that needs your notes (for example, “what did I write about MCP in Notion”). Ordinary research still works while disconnected.
 5. After citations exist, click **Preview Study Plan**, search or paste a destination page, then **Export displayed plan**.
@@ -157,6 +174,7 @@ OAuth failures never fall back to `NOTION_API_KEY`. REST export remains an expli
 ```bash
 pip install -e ".[test]"
 pytest tests/
+cd frontend && npm test
 ```
 
 Stdio MCP tests use `tests/runtime/mcp/fixture_server.py`. OAuth and HTTP callback tests use mocked responses.
@@ -177,11 +195,12 @@ Record live verification separately from automated results. The live test does n
 ## Known limitations
 
 - One local profile and one active Notion workspace connection
-- OAuth is loopback-only (`127.0.0.1`); no Gradio share and no hosted multi-user OAuth
+- OAuth is loopback-only (`127.0.0.1`); no hosted multi-user OAuth
 - macOS Keychain is required for OAuth; there is no plaintext credential fallback
 - Notion research is read-only; page creation is the Export button
 - Export is not exactly-once across network failures. A timeout after dispatch is recorded as unknown and is not retried automatically. Inspect Notion before creating another page.
 - Local disconnect does not revoke the Notion grant
 - Persistent Notion research caching is disabled; connection-dependent in-memory results are cleared on disconnect or workspace change
-- Chat history remains in-memory for the browser session
+- The visible transcript is kept in the browser tab's session storage; the server keeps only conversation context in memory, and a server restart clears it
+- One research request runs at a time; Chat and Research share the same conversation
 - Dynamic subagent spawning, general workspace editing, shared database storage, distributed refresh, cloud deployment, and a newer MCP stack are follow-up work

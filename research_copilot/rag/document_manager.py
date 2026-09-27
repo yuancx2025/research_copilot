@@ -165,10 +165,10 @@ class DocumentManager:
             print(f"Error indexing web page {url}: {e}")
             return False
     
-    def get_markdown_files(self):
+    def list_documents(self):
         if not self.markdown_dir.exists():
             return []
-        return sorted([p.name.replace(".md", ".pdf") for p in self.markdown_dir.glob("*.md")])
+        return sorted(p.stem for p in self.markdown_dir.glob("*.md"))
     
     def clear_all(self):
         if self.markdown_dir.exists():

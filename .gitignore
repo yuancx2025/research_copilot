@@ -37,6 +37,11 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
 # Local verification environment and runtime state
 .venv-mcp/
 *.sqlite3

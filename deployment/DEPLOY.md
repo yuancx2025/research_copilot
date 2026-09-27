@@ -234,7 +234,7 @@ gcloud run deploy ${SERVICE_NAME} \
   --timeout 3600 \
   --max-instances 10 \
   --min-instances 0 \
-  --set-env-vars="GCS_BUCKET_NAME=${PROJECT_ID}-research-copilot-data,QDRANT_DB_PATH=/tmp/qdrant_db,PARENT_STORE_PATH=/tmp/parent_store,MARKDOWN_DIR=/tmp/markdown_docs,GRADIO_SERVER_NAME=0.0.0.0,GRADIO_SERVER_PORT=7860,LLM_PROVIDER=google,LLM_MODEL=gemini-2.5-flash,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},USE_GITHUB_MCP=false,USE_WEB_SEARCH_MCP=false,USE_NOTION_MCP=false,NOTION_PARENT_PAGE_ID=${NOTION_PARENT_PAGE_ID}" \
+  --set-env-vars="GCS_BUCKET_NAME=${PROJECT_ID}-research-copilot-data,QDRANT_DB_PATH=/tmp/qdrant_db,PARENT_STORE_PATH=/tmp/parent_store,MARKDOWN_DIR=/tmp/markdown_docs,SERVER_HOST=0.0.0.0,SERVER_PORT=7860,LLM_PROVIDER=google,LLM_MODEL=gemini-2.5-flash,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},USE_GITHUB_MCP=false,USE_WEB_SEARCH_MCP=false,USE_NOTION_MCP=false,NOTION_PARENT_PAGE_ID=${NOTION_PARENT_PAGE_ID}" \
   --port 7860 \
   --allow-unauthenticated \
   --project=${PROJECT_ID}
@@ -387,7 +387,7 @@ gcloud run deploy ${SERVICE_NAME} \
   --timeout 3600 \
   --max-instances 10 \
   --min-instances 0 \
-  --set-env-vars="GCS_BUCKET_NAME=${PROJECT_ID}-research-copilot-data,QDRANT_DB_PATH=/tmp/qdrant_db,PARENT_STORE_PATH=/tmp/parent_store,MARKDOWN_DIR=/tmp/markdown_docs,GRADIO_SERVER_NAME=0.0.0.0,GRADIO_SERVER_PORT=7860,LLM_PROVIDER=google,LLM_MODEL=gemini-2.5-flash,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},USE_GITHUB_MCP=false,USE_WEB_SEARCH_MCP=false,USE_NOTION_MCP=false,NOTION_PARENT_PAGE_ID=${NOTION_PARENT_PAGE_ID}" \
+  --set-env-vars="GCS_BUCKET_NAME=${PROJECT_ID}-research-copilot-data,QDRANT_DB_PATH=/tmp/qdrant_db,PARENT_STORE_PATH=/tmp/parent_store,MARKDOWN_DIR=/tmp/markdown_docs,SERVER_HOST=0.0.0.0,SERVER_PORT=7860,LLM_PROVIDER=google,LLM_MODEL=gemini-2.5-flash,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},USE_GITHUB_MCP=false,USE_WEB_SEARCH_MCP=false,USE_NOTION_MCP=false,NOTION_PARENT_PAGE_ID=${NOTION_PARENT_PAGE_ID}" \
   --port 7860 \
   --allow-unauthenticated \
   --project=${PROJECT_ID}
@@ -476,7 +476,7 @@ export NOTION_PARENT_PAGE_ID="${NOTION_PARENT_PAGE_ID:-}"  # Set if using Notion
 gcloud run deploy ${SERVICE_NAME} \
   --image ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${SERVICE_NAME}:latest \
   --region ${REGION} \
-  --set-env-vars="GCS_BUCKET_NAME=${PROJECT_ID}-research-copilot-data,QDRANT_DB_PATH=/tmp/qdrant_db,PARENT_STORE_PATH=/tmp/parent_store,MARKDOWN_DIR=/tmp/markdown_docs,GRADIO_SERVER_NAME=0.0.0.0,GRADIO_SERVER_PORT=7860,LLM_PROVIDER=google,LLM_MODEL=gemini-2.5-flash,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},USE_GITHUB_MCP=false,USE_WEB_SEARCH_MCP=false,USE_NOTION_MCP=false,NOTION_PARENT_PAGE_ID=${NOTION_PARENT_PAGE_ID}" \
+  --set-env-vars="GCS_BUCKET_NAME=${PROJECT_ID}-research-copilot-data,QDRANT_DB_PATH=/tmp/qdrant_db,PARENT_STORE_PATH=/tmp/parent_store,MARKDOWN_DIR=/tmp/markdown_docs,SERVER_HOST=0.0.0.0,SERVER_PORT=7860,LLM_PROVIDER=google,LLM_MODEL=gemini-2.5-flash,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},USE_GITHUB_MCP=false,USE_WEB_SEARCH_MCP=false,USE_NOTION_MCP=false,NOTION_PARENT_PAGE_ID=${NOTION_PARENT_PAGE_ID}" \
   --project=${PROJECT_ID}
 ```
 

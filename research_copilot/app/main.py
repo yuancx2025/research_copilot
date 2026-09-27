@@ -1,30 +1,35 @@
-"""Canonical local/legacy REST application entrypoint."""
+"""Canonical application entrypoint: JSON/SSE API, local OAuth routes, and the React app."""
 import os
-import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
-from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse, JSONResponse
-from starlette.middleware.sessions import SessionMiddleware
-from starlette.middleware.trustedhost import TrustedHostMiddleware
+from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
+from .security import install_security, validate_loopback_url
 
 
-def create_app(config=None, connection=None, ui_factory=None, mount_ui=True):
+def create_app(config=None, connection=None, research_factory=None, frontend_dir=None):
     if config is None:
         from research_copilot.config import settings as config
     backend = getattr(config, 'NOTION_BACKEND', 'disabled')
     local = backend == 'mcp'
     base = getattr(config, 'OAUTH_BASE_URL', 'http://127.0.0.1:7860')
-    parts = urlsplit(base)
-    if local and (parts.scheme != 'http' or parts.hostname != '127.0.0.1' or parts.path not in ('', '/') or parts.query or parts.fragment or parts.username or parts.password):
-        raise ValueError('Local MCP OAuth requires OAUTH_BASE_URL=http://127.0.0.1:<port>')
+    frontend_url = (getattr(config, 'FRONTEND_URL', '') or '').rstrip('/')
+    if local:
+        try:
+            validate_loopback_url(base, 'OAUTH_BASE_URL')
+        except ValueError:
+            raise ValueError('Local MCP OAuth requires OAUTH_BASE_URL=http://127.0.0.1:<port>') from None
+        if frontend_url:
+            validate_loopback_url(frontend_url, 'FRONTEND_URL')
     from research_copilot.runtime.auth.connection import ConnectionService
     from research_copilot.sources.notion.oauth import NotionAuthProvider
     from research_copilot.sources.notion.mcp_service import NotionMCPService
     from research_copilot.storage.export_store import ExportStore
     from research_copilot.sources.notion.exporter import ExportService
     from .oauth_routes import oauth_router
+    from .api import api_router
+    from .static import mount_frontend
     if local:
         connection = connection or ConnectionService(
             NotionAuthProvider(), base_url=base, timeout=getattr(config, 'OAUTH_TIMEOUT', 300))
@@ -33,46 +38,38 @@ def create_app(config=None, connection=None, ui_factory=None, mount_ui=True):
         connection, notion = None, None
     data_dir = Path(os.getenv('RESEARCH_COPILOT_DATA_DIR', str(Path.home() / '.local/share/research-copilot')))
     exporter = ExportService(ExportStore(data_dir / 'exports.sqlite3'), notion, config)
+    if research_factory is None:
+        from research_copilot.core.research_service import build_research_service
+        research_factory = build_research_service
 
     @asynccontextmanager
     async def lifespan(app):
         if connection:
             await connection.initialize()
+        app.state.research = research_factory(config=config, notion=notion, exporter=exporter)
         yield
         if connection:
             await connection.close()
 
-    app = FastAPI(lifespan=lifespan)
+    app = FastAPI(title='Research Copilot', lifespan=lifespan)
+    app.state.config = config
+    app.state.local = local
     app.state.connection = connection
     app.state.notion = notion
     app.state.exporter = exporter
+    app.state.research = None
+    install_security(app, local, base)
+
     if local:
-        app.add_middleware(SessionMiddleware, secret_key=secrets.token_urlsafe(48),
-                           same_site='lax', session_cookie='research_copilot_session')
-        app.add_middleware(TrustedHostMiddleware, allowed_hosts=['127.0.0.1'])
+        app.include_router(oauth_router(connection, frontend_url))
+    app.include_router(api_router())
 
-        @app.middleware('http')
-        async def local_origin(request: Request, call_next):
-            origin = request.headers.get('origin')
-            cross_site = request.headers.get('sec-fetch-site') == 'cross-site'
-            if request.method not in ('GET', 'HEAD', 'OPTIONS') and (cross_site or (origin and origin != base)):
-                return JSONResponse({'detail':'Cross-origin writes are not allowed'}, status_code=403)
-            return await call_next(request)
+    @app.get('/ui', include_in_schema=False)
+    async def legacy_ui():
+        return RedirectResponse('/')
 
-        app.include_router(oauth_router(connection))
-
-    @app.get('/')
-    async def root():
-        return RedirectResponse('/ui')
-
-    if not mount_ui:
-        return app
-    if ui_factory is None:
-        from research_copilot.ui.gradio_app import create_gradio_ui
-        ui_factory = create_gradio_ui
-    demo = ui_factory(notion_service=notion, export_service=exporter)
-    import gradio as gr
-    return gr.mount_gradio_app(app, demo, path='/ui')
+    mount_frontend(app, frontend_dir)
+    return app
 
 
 def main():
@@ -81,9 +78,12 @@ def main():
     from research_copilot.config import settings as config
     import uvicorn
     local = config.NOTION_BACKEND == 'mcp'
-    port = (urlsplit(config.OAUTH_BASE_URL).port or 7860) if local else int(os.getenv('GRADIO_SERVER_PORT', '7860'))
-    uvicorn.run(create_app(config), host='127.0.0.1' if local else os.getenv('GRADIO_SERVER_NAME', '0.0.0.0'),
-                port=port, workers=1, access_log=False)
+    if local:
+        host, port = '127.0.0.1', urlsplit(config.OAUTH_BASE_URL).port or 7860
+    else:
+        host = os.getenv('SERVER_HOST') or os.getenv('GRADIO_SERVER_NAME', '0.0.0.0')
+        port = int(os.getenv('PORT') or os.getenv('SERVER_PORT') or os.getenv('GRADIO_SERVER_PORT', '7860'))
+    uvicorn.run(create_app(config), host=host, port=port, workers=1, access_log=False)
 
 
 if __name__ == '__main__':

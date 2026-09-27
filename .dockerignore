@@ -1,0 +1,17 @@
+.git
+.env
+.env.*
+.venv
+.venv-mcp
+**/__pycache__
+**/*.pyc
+.pytest_cache
+htmlcov
+*.egg-info
+data
+qdrant_db
+parent_store
+markdown_docs
+frontend/node_modules
+frontend/dist
+tests
