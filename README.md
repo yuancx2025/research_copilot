@@ -2,7 +2,7 @@
 
 A local, single-user research assistant that searches local documents, academic papers, the web, GitHub, YouTube, and a connected Notion workspace. After research, you can preview a study plan and export that exact draft to a Notion page you choose.
 
-The UI is a React app (`frontend/`) served by the same FastAPI process that exposes the JSON/SSE API under `/api`. Notion OAuth binds to `127.0.0.1` only.
+The UI is a React app in [`frontend/`](frontend/) (see [frontend/README.md](frontend/README.md)) served by the same FastAPI process that exposes the JSON/SSE API under `/api`. Notion OAuth binds to `127.0.0.1` only.
 
 ## Architecture
 
@@ -51,9 +51,8 @@ flowchart TD
 
 - Research runs stream progress to the browser over Server-Sent Events (sources selected, each agent finishing, then the answer).
 
-**Layout**
+**Backend layout**
 ```
-frontend/            # React + TypeScript (Vite): Research, Chat, Documents, Notion study plans
 research_copilot/
 ├── app/             # FastAPI factory, /api routers, SSE, security, OAuth routes, static serving
 ├── orchestrator/    # LangGraph routing, intent, aggregation
@@ -81,7 +80,7 @@ research_copilot/
 ### Prerequisites
 
 - Python 3.11 (compatibility baseline for this MCP stack)
-- Node.js 20+ to build or develop the frontend
+- Node.js 20+ to build the frontend (see [frontend/README.md](frontend/README.md) for UI development)
 - macOS Keychain if you use Notion MCP OAuth
 - API keys for the LLM and any non-Notion sources you enable
 
@@ -145,18 +144,7 @@ python app.py
 
 Open `http://127.0.0.1:7860`. The old `/ui` path redirects there.
 
-### Frontend development
-
-Run the backend as above, then start Vite with hot reload:
-
-```bash
-cd frontend
-npm run dev        # http://127.0.0.1:5173, proxies /api and /oauth/notion to :7860
-npm test           # Vitest
-npm run typecheck
-```
-
-Use `127.0.0.1`, not `localhost`: the backend only accepts that host in OAuth mode. The dev proxy rewrites the `Origin` header so the backend's same-origin write check still passes. To land back on the dev server after Notion consent, add `FRONTEND_URL=http://127.0.0.1:5173` to `.env`. The OAuth callback itself always goes to `OAUTH_BASE_URL`, so keep that on the backend port.
+For Vite hot reload, proxy behavior, and frontend file layout, see [frontend/README.md](frontend/README.md).
 
 ## Using Notion
 
