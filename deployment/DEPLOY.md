@@ -2,6 +2,8 @@
 
 This guide provides commands to deploy Research Copilot to Google Cloud Platform using Cloud Build (no local Docker required).
 
+> These steps do not provision `DATABASE_URL` or the credential key file. Saved conversations and encrypted Notion credentials require PostgreSQL (see the root README). This Cloud Run guide is not a supported deployment of that setup.
+
 ## Prerequisites
 
 1. **Google Cloud Account** with billing enabled

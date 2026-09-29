@@ -62,8 +62,9 @@ research_copilot/
 ├── runtime/         # Agents, toolkits, MCP, OAuth lifecycle, source registry
 ├── study_plans/     # Draft generation (Notion only publishes)
 ├── rag/             # Chunking, retrieval, reranking, document ingest
-├── storage/         # Qdrant, parent store, Keychain, export ledger
-├── core/            # RAGSystem, ChatInterface, ResearchService (run, drafts), source registration
+├── storage/         # Qdrant, parent store, encrypted credentials, export ledger
+├── db/              # SQLAlchemy models, repositories, Alembic migrations
+├── core/            # RAGSystem, ChatInterface, ResearchService (saved runs and drafts)
 └── config/          # Shared local/GCP settings, including MCP
 ```
 
@@ -73,7 +74,8 @@ research_copilot/
 - **ArXiv, web, GitHub, YouTube**: specialized research agents
 - **Notion research**: search and fetch notes from one OAuth-connected workspace
 - **Preview then export**: generate a study plan, inspect the Markdown, choose a destination page, then publish
-- **Local OAuth**: Connect/Disconnect in the Research tab; tokens live in macOS Keychain
+- **Saved conversations**: messages, results, citations, and study-plan previews in PostgreSQL, with explicit retry after an interrupted run
+- **Local OAuth**: Connect/Disconnect in the Research tab; tokens are encrypted in PostgreSQL with a key file outside the repository
 
 ## Quick start
 
@@ -81,7 +83,7 @@ research_copilot/
 
 - Python 3.11 (compatibility baseline for this MCP stack)
 - Node.js 20+ to build the frontend (see [frontend/README.md](frontend/README.md) for UI development)
-- macOS Keychain if you use Notion MCP OAuth
+- A PostgreSQL database. Local development uses a Neon **direct** endpoint (`sslmode=require`, hostname without `-pooler`)
 - API keys for the LLM and any non-Notion sources you enable
 
 ### Installation
@@ -114,9 +116,15 @@ LLM_MODEL=gemini-2.5-flash
 TAVILY_API_KEY=your-tavily-api-key
 GITHUB_TOKEN=your-github-token
 
+# Neon direct endpoint (not the pooled host). Required in every mode.
+DATABASE_URL=postgresql://USER:PASSWORD@ep-example.c-13.us-east-1.aws.neon.tech/research_copilot?sslmode=require
+
 # Notion: mcp (OAuth research + export), rest (legacy token export), or disabled
 NOTION_BACKEND=mcp
 OAUTH_BASE_URL=http://127.0.0.1:7860
+
+# Optional. Defaults to ~/.config/research-copilot/credential-keys.json
+# MCP_CREDENTIAL_KEY_FILE=
 
 # REST compatibility mode only (never used as an OAuth fallback)
 # NOTION_BACKEND=rest
@@ -132,6 +140,15 @@ OAUTH_BASE_URL=http://127.0.0.1:7860
 `OAUTH_BASE_URL` must be `http://127.0.0.1:<port>` with no path. Hosted multi-user OAuth is out of scope for this release.
 
 ### Launch
+
+Apply the schema, then create the credential key once. The server refuses to start against an unmigrated database and never generates a replacement key:
+
+```bash
+research-copilot-admin db upgrade
+research-copilot-admin keys init
+```
+
+`db upgrade` creates the application tables and LangGraph's checkpoint tables. `keys init` writes a random 32-byte key to `~/.config/research-copilot/credential-keys.json` (mode `0600`, directory `0700`) and refuses to overwrite an existing file.
 
 Build the frontend once, then start the server. Both entrypoints use the same FastAPI application factory:
 
@@ -150,10 +167,16 @@ For Vite hot reload, proxy behavior, and frontend file layout, see [frontend/REA
 
 1. Set `NOTION_BACKEND=mcp` and start the app on `127.0.0.1`.
 2. In the Research tab, click **Connect Notion** and complete consent in the new tab. The tab closes itself when the connection finishes.
-3. Restarting the app reuses Keychain credentials while the grant remains valid. You should not see another consent screen until access expires or you disconnect.
+3. Restarting the app reuses the encrypted credentials while the grant remains valid. You should not see another consent screen until access expires or you disconnect. Switching onto this store needs one fresh Notion authorization; existing macOS Keychain tokens are not imported. After the new connection works, the old Keychain item can be removed with `security delete-generic-password -s research-copilot.notion-mcp`.
 4. Ask a question that needs your notes (for example, “what did I write about MCP in Notion”). Ordinary research still works while disconnected.
-5. After citations exist, click **Preview Study Plan**, search or paste a destination page, then **Export displayed plan**.
-6. **Disconnect** stops new calls and deletes the local Keychain record. That does not revoke the grant in Notion; revoke access in Notion settings if you want the provider-side authorization removed.
+5. After citations exist, click **Preview Study Plan**, search or paste a destination page, then **Export displayed plan**. The preview is saved before it is shown, and export publishes that stored Markdown.
+6. **Disconnect** stops credential use immediately and deletes the encrypted payload. Saved answers, citations, and previews stay readable; drafts from the old connection cannot be exported. Disconnect is reported as failed if the database update fails. Revoke the grant in Notion settings if you also want the provider-side authorization removed.
+
+### Credential key backup
+
+The key file is the only copy of the encryption key. It is not stored in Neon, source control, frontend bundles, or database backups. Copy it to a protected place (an encrypted password manager or another machine you control) before you rely on the Notion connection.
+
+If the file is missing, unreadable, or is a different key, Notion stays disconnected with an error that names the file. Research history in PostgreSQL remains available. Restore the original file, or run **Connect Notion** again to create a new encrypted credential. Do not run `keys init` over a file you still need: it will refuse, and deleting the file first makes every saved credential undecryptable.
 
 OAuth failures never fall back to `NOTION_API_KEY`. REST export remains an explicit `NOTION_BACKEND=rest` compatibility mode that still uses the block renderer.
 

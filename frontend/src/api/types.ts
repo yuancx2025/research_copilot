@@ -21,6 +21,7 @@ export interface Citation {
 }
 
 export interface ResearchResult {
+  run_id: string
   query: string
   answer: string
   citations: Citation[]
@@ -30,14 +31,57 @@ export interface ResearchResult {
   generation: string | null
 }
 
-export interface LastResearch {
-  running: boolean
+export type RunStatus =
+  | 'queued'
+  | 'running'
+  | 'awaiting_clarification'
+  | 'completed'
+  | 'failed'
+  | 'interrupted'
+  | 'superseded'
+
+export interface Run {
+  id: string
+  conversation_id: string
+  request_id: string
+  status: RunStatus
+  query: string
+  retry_of_run_id: string | null
+  error: string | null
+  last_seq: number
+  created_at: string
+  finished_at: string | null
   result: ResearchResult | null
+}
+
+export interface ConversationMessage {
+  id: string
+  role: 'user' | 'assistant' | 'error'
+  content: string
+  clarification: boolean
+  run_id: string | null
+  request_id: string | null
+  created_at: string
+}
+
+export interface Conversation {
+  id: string
+  title: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ConversationDetail extends Conversation {
+  messages: ConversationMessage[]
+  runs: Run[]
+  drafts: Draft[]
 }
 
 export interface ProgressEvent {
   type: 'progress'
   node: string
+  seq?: number
+  run_id?: string
   agents?: string[]
   source?: string
   clear?: boolean
@@ -48,7 +92,10 @@ export interface ErrorEvent {
   message: string
 }
 
-export type ResearchEvent = ProgressEvent | ({ type: 'result' } & ResearchResult) | ErrorEvent
+export type ResearchEvent =
+  | ProgressEvent
+  | { type: 'result'; seq: number; run_id: string; run: Run }
+  | (ErrorEvent & { seq?: number; run_id?: string; status?: string })
 
 export interface UploadResult {
   added: number
@@ -63,8 +110,10 @@ export type UploadEvent =
 
 export interface Draft {
   draft_id: string
+  run_id: string
   title: string
   markdown: string
+  exportable: boolean
 }
 
 export interface NotionPage {

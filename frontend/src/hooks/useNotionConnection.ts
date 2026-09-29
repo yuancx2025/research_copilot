@@ -1,11 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { disconnectNotion, fetchNotionStatus, startNotionAuthorization } from '../api/endpoints'
-import { useResearchStore } from '../store/researchStore'
-
 export function useNotionConnection(enabled: boolean) {
   const queryClient = useQueryClient()
-  const syncGeneration = useResearchStore((state) => state.syncGeneration)
   const [actionError, setActionError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -17,10 +14,15 @@ export function useNotionConnection(enabled: boolean) {
     refetchOnWindowFocus: true,
   })
 
-  const generation = status.data?.generation ?? null
+  const generation = status.data?.generation
+  const seenGeneration = useRef<string | null | undefined>(undefined)
   useEffect(() => {
-    if (status.data) syncGeneration(generation)
-  }, [status.data, generation, syncGeneration])
+    if (generation === undefined && !status.data) return
+    if (seenGeneration.current !== undefined && seenGeneration.current !== (generation ?? null)) {
+      void queryClient.invalidateQueries({ queryKey: ['conversation'] })
+    }
+    if (status.data) seenGeneration.current = generation ?? null
+  }, [status.data, generation, queryClient])
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['notion-status'] })
 
@@ -49,7 +51,7 @@ export function useNotionConnection(enabled: boolean) {
     try {
       await disconnectNotion()
     } catch {
-      setActionError('Could not remove the connection. Check Keychain and retry.')
+      setActionError('Could not remove the connection. Check the database and retry.')
     } finally {
       setBusy(false)
       refresh()

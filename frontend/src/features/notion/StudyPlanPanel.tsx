@@ -1,8 +1,9 @@
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { exportStudyPlan, previewStudyPlan } from '../../api/endpoints'
-import type { AppConfig, Draft, ExportResult } from '../../api/types'
+import type { AppConfig, Draft, ExportResult, Run } from '../../api/types'
 import { Markdown } from '../../components/Markdown'
-import { useResearchStore } from '../../store/researchStore'
+import { useUiStore } from '../../store/researchStore'
 import { DestinationPicker } from './DestinationPicker'
 
 function ExportForm({ draft, config }: { draft: Draft; config: AppConfig }) {
@@ -33,11 +34,12 @@ function ExportForm({ draft, config }: { draft: Draft; config: AppConfig }) {
       {config.notion_backend === 'mcp' && <DestinationPicker onPick={setDestination} />}
       <label>
         Destination page URL or UUID
-        <input value={destination} onChange={(event) => setDestination(event.target.value)} disabled={locked} />
+        <input value={destination} onChange={(event) => setDestination(event.target.value)} disabled={locked || !draft.exportable} />
       </label>
-      <button className="primary" onClick={publish} disabled={exporting || locked || !destination.trim()}>
+      <button className="primary" onClick={publish} disabled={exporting || locked || !destination.trim() || !draft.exportable}>
         {exporting ? 'Exporting…' : 'Export displayed plan'}
       </button>
+      {!draft.exportable && <p className="notice error">This preview belongs to an earlier Notion connection. Generate a new one.</p>}
       {result &&
         (result.status === 'success' && result.url ? (
           <p className="notice ok">
@@ -54,19 +56,20 @@ function ExportForm({ draft, config }: { draft: Draft; config: AppConfig }) {
   )
 }
 
-export function StudyPlanPanel({ config }: { config: AppConfig }) {
-  const result = useResearchStore((state) => state.result)
-  const draft = useResearchStore((state) => state.draft)
-  const setDraft = useResearchStore((state) => state.setDraft)
-  const streaming = useResearchStore((state) => state.streaming)
+export function StudyPlanPanel({ config, run, draft }: { config: AppConfig; run: Run | null; draft: Draft | null }) {
+  const queryClient = useQueryClient()
+  const streaming = useUiStore((state) => state.streamingRunId)
   const [previewing, setPreviewing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const canPreview = Boolean(run?.result?.can_preview_plan)
 
   const preview = async () => {
+    if (!run) return
     setPreviewing(true)
     setError(null)
     try {
-      setDraft(await previewStudyPlan())
+      await previewStudyPlan(run.id)
+      await queryClient.invalidateQueries({ queryKey: ['conversation', run.conversation_id] })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not generate a draft.')
     } finally {
@@ -77,10 +80,10 @@ export function StudyPlanPanel({ config }: { config: AppConfig }) {
   return (
     <section className="panel study-plan">
       <h3>Notion study plan</h3>
-      <button className="primary" onClick={preview} disabled={!result?.can_preview_plan || streaming || previewing}>
+      <button className="primary" onClick={preview} disabled={!canPreview || !!streaming || previewing}>
         {previewing ? 'Generating preview…' : draft ? 'Regenerate preview' : 'Preview study plan'}
       </button>
-      {!result?.can_preview_plan && !draft && (
+      {!canPreview && !draft && (
         <p className="muted">Run research that returns citations to preview a study plan.</p>
       )}
       {error && <p className="notice error">{error}</p>}

@@ -8,7 +8,8 @@ KEEPALIVE_SECONDS = 15.0
 
 def encode(event: dict) -> bytes:
     kind = event.get('type', 'message')
-    return f"event: {kind}\ndata: {json.dumps(event, default=str)}\n\n".encode()
+    event_id = f"id: {event['seq']}\n" if 'seq' in event else ''
+    return f"{event_id}event: {kind}\ndata: {json.dumps(event, default=str)}\n\n".encode()
 
 
 async def _with_keepalive(events, interval):

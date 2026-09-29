@@ -8,18 +8,19 @@ In production the backend serves the built assets from `dist/`. In development, 
 
 | Route | Purpose |
 |-------|---------|
-| `/research` | Research chat, live progress, citations and sources sidebar, Notion connect bar, study plan preview/export, compact document upload |
-| `/chat` | Same conversation as Research, without the artifacts sidebar |
+| `/research/:conversationId?` | Research chat, live progress, citations and sources sidebar, Notion connect bar, study plan preview/export, compact document upload |
+| `/chat/:conversationId?` | The same selected conversation, without the artifacts sidebar |
 | `/documents` | Upload PDF/Markdown into the knowledge base, list and clear documents |
 | `/oauth/done` | Shown after Notion consent; tries to close the OAuth tab |
 
 **State model (single user, one browser profile):**
 
-- **Chat transcript and last research result** — Zustand store persisted to `sessionStorage` (the server prunes LangGraph messages and does not keep a full UI history).
-- **Notion connection status** — TanStack Query polling `/oauth/notion/status`; when `generation` changes, local research artifacts and drafts are cleared.
+- **Conversations, messages, runs, citations, and study-plan drafts** — PostgreSQL, loaded with TanStack Query. Chat and Research are two views of the selected conversation.
+- **Unsent composer text** — Zustand, persisted under `sessionStorage` key `research-copilot:v2`. Older `research-copilot` snapshots are left in place and are not treated as saved research.
+- **Notion connection status** — TanStack Query polling `/oauth/notion/status`. A generation change refreshes conversation queries so stale previews stop being exportable.
 - **Document list** — TanStack Query on `/api/documents`; uploads stream progress over SSE and update the cache.
 
-**Research flow:** `Composer` → `sendMessage` in `store/researchStore.ts` → `POST /api/research` (SSE: progress, then result or error). On page load, `App` calls `recoverResearch()` to reattach to an in-flight run or restore the last result from `/api/research/last`.
+**Research flow:** `Composer` → `POST /api/conversations/{id}/runs` (202, with a client request id) → `GET /api/runs/{id}/events?after=<seq>`. A clarification reply goes to `POST /api/runs/{id}/reply`. Opening a conversation reattaches to a queued or running run by id. **New conversation** keeps previous history.
 
 ## Prerequisites
 

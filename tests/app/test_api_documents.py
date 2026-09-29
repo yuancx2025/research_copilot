@@ -6,14 +6,9 @@ from fastapi.testclient import TestClient
 from tests.app.fakes import make_app, make_service, parse_sse
 
 
-@pytest.fixture(autouse=True)
-def _data_dir(tmp_path, monkeypatch):
-    monkeypatch.setenv('RESEARCH_COPILOT_DATA_DIR', str(tmp_path))
-
-
-def test_list_upload_and_clear_documents():
-    service = make_service()
-    with TestClient(make_app(service)) as client:
+def test_list_upload_and_clear_documents(db):
+    service = make_service(db)
+    with TestClient(make_app(service, db)) as client:
         assert client.get('/api/documents').json() == {'documents': ['existing']}
         response = client.post('/api/documents', files=[
             ('files', ('paper.pdf', b'%PDF-1.4', 'application/pdf')),
@@ -34,6 +29,6 @@ def test_list_upload_and_clear_documents():
     assert service.documents.received[1][1] == b'# notes'
 
 
-def test_upload_requires_files():
-    with TestClient(make_app(make_service())) as client:
+def test_upload_requires_files(db):
+    with TestClient(make_app(make_service(db), db)) as client:
         assert client.post('/api/documents').status_code == 422

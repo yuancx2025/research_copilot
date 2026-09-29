@@ -1,146 +1,106 @@
+import { useEffect } from 'react'
+import type { QueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
-import { ApiError } from '../api/client'
-import { fetchLastResearch, followResearch, resetSession, startResearch } from '../api/endpoints'
-import type { Draft, ProgressEvent, ResearchEvent, ResearchResult } from '../api/types'
+import { fetchRun, followRun, replyToRun, submitRun } from '../api/endpoints'
+import type { ConversationDetail, ProgressEvent, ResearchEvent, Run } from '../api/types'
 
-export interface ChatMessage {
-  id: string
-  role: 'user' | 'assistant' | 'error'
-  content: string
-  clarification?: boolean
-}
-
-interface ResearchState {
-  // The backend keeps conversation context, but prunes messages after each question,
-  // so the visible transcript lives here.
-  messages: ChatMessage[]
-  result: ResearchResult | null
-  draft: Draft | null
-  generation: string | null | undefined
-  pendingQuery: string | null
+interface UiState {
+  drafts: Record<string, string>
+  streamingRunId: string | null
   progress: ProgressEvent[]
-  streaming: boolean
-  apply: (event: ResearchEvent) => void
-  setDraft: (draft: Draft | null) => void
-  syncGeneration: (generation: string | null) => void
-  clearLocal: () => void
+  streamNotice: string | null
+  setDraft: (conversationId: string, text: string) => void
 }
 
-let nextId = 0
-const messageId = () => `${Date.now()}-${nextId++}`
-
-export const useResearchStore = create<ResearchState>()(
+// Only unsent composer text is persisted. Saved research lives in PostgreSQL.
+// The legacy `research-copilot` session key is never read.
+export const useUiStore = create<UiState>()(
   persist(
     (set) => ({
-      messages: [],
-      result: null,
-      draft: null,
-      generation: undefined,
-      pendingQuery: null,
+      drafts: {},
+      streamingRunId: null,
       progress: [],
-      streaming: false,
-      apply: (event) =>
-        set((state) => {
-          if (event.type === 'progress') return { progress: [...state.progress, event] }
-          if (event.type === 'error') {
-            return {
-              pendingQuery: null,
-              result: null,
-              messages: [...state.messages, { id: messageId(), role: 'error', content: event.message }],
-            }
-          }
-          const { type: _type, ...result } = event
-          return {
-            pendingQuery: null,
-            result,
-            draft: null,
-            messages: [
-              ...state.messages,
-              { id: messageId(), role: 'assistant', content: result.answer, clarification: result.needs_clarification },
-            ],
-          }
-        }),
-      setDraft: (draft) => set({ draft }),
-      syncGeneration: (generation) =>
-        set((state) => {
-          if (state.generation === undefined || state.generation === generation) return { generation }
-          return { generation, result: null, draft: null }
-        }),
-      clearLocal: () => set({ messages: [], result: null, draft: null, pendingQuery: null, progress: [] }),
+      streamNotice: null,
+      setDraft: (conversationId, text) =>
+        set((state) => ({ drafts: { ...state.drafts, [conversationId]: text } })),
     }),
     {
-      name: 'research-copilot',
+      name: 'research-copilot:v2',
       storage: createJSONStorage(() => sessionStorage),
-      partialize: ({ messages, result, draft, generation, pendingQuery }) => ({
-        messages,
-        result,
-        draft,
-        generation,
-        pendingQuery,
-      }),
+      partialize: ({ drafts }) => ({ drafts }),
     },
   ),
 )
 
-async function consume(stream: (onEvent: (event: ResearchEvent) => void) => Promise<void>) {
-  const store = useResearchStore
-  store.setState({ streaming: true, progress: [] })
-  let settled = false
+export function requestId(): string {
+  return crypto.randomUUID()
+}
+
+export function takeEvent(seen: Set<number>, event: { seq?: number }): boolean {
+  if (event.seq == null || seen.has(event.seq)) return false
+  seen.add(event.seq)
+  return true
+}
+
+const inflight = new Map<string, Promise<void>>()
+
+export function followSavedRun(queryClient: QueryClient, run: Run): Promise<void> {
+  const existing = inflight.get(run.id)
+  if (existing) return existing
+  const promise = consume(queryClient, run).finally(() => {
+    if (inflight.get(run.id) === promise) inflight.delete(run.id)
+  })
+  inflight.set(run.id, promise)
+  return promise
+}
+
+async function consume(queryClient: QueryClient, run: Run) {
+  const store = useUiStore
+  store.setState({ streamingRunId: run.id, progress: [], streamNotice: null })
+  const seen = new Set<number>()
   try {
-    await stream((event) => {
-      if (event.type !== 'progress') settled = true
-      store.getState().apply(event)
+    await followRun(run.id, run.last_seq, (event: ResearchEvent) => {
+      if (!takeEvent(seen, event) || event.type !== 'progress') return
+      store.setState((state) => ({ progress: [...state.progress, event] }))
     })
-    if (!settled) store.getState().apply({ type: 'error', message: 'The research stream ended unexpectedly.' })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Research could not start.'
-    if (!settled) store.getState().apply({ type: 'error', message })
+    try {
+      const current = await fetchRun(run.id)
+      if (current.status === 'queued' || current.status === 'running') {
+        store.setState({ streamNotice: 'The progress stream disconnected. Research is still running.' })
+      }
+    } catch {
+      store.setState({ streamNotice: error instanceof Error ? error.message : 'The progress stream disconnected.' })
+    }
   } finally {
-    store.setState({ streaming: false, progress: [] })
+    if (store.getState().streamingRunId === run.id) store.setState({ streamingRunId: null, progress: [] })
+    await queryClient.invalidateQueries({ queryKey: ['conversation', run.conversation_id] })
   }
 }
 
-export async function sendMessage(text: string) {
+export async function sendMessage(queryClient: QueryClient, conversationId: string, text: string, replyTo?: Run) {
   const message = text.trim()
-  const store = useResearchStore
-  if (!message || store.getState().streaming) return
-  store.setState((state) => ({
-    pendingQuery: message,
-    messages: [...state.messages, { id: messageId(), role: 'user', content: message }],
-  }))
-  await consume((onEvent) => startResearch(message, onEvent))
+  if (!message || useUiStore.getState().streamingRunId) return
+  const run = replyTo
+    ? await replyToRun(replyTo.id, message, requestId())
+    : await submitRun(conversationId, message, requestId())
+  await queryClient.invalidateQueries({ queryKey: ['conversation', conversationId] })
+  await followSavedRun(queryClient, run)
 }
 
-// After a reload, reattach to a run that is still going or pick up one that
-// finished while the page was away.
-export async function recoverResearch() {
-  const store = useResearchStore
-  if (store.getState().streaming) return
-  let last
-  try {
-    last = await fetchLastResearch()
-  } catch {
-    return
-  }
-  const { pendingQuery } = store.getState()
-  if (last.running) {
-    await consume(followResearch)
-  } else if (pendingQuery) {
-    if (last.result?.query === pendingQuery) store.getState().apply({ type: 'result', ...last.result })
-    else store.getState().apply({ type: 'error', message: 'The request was interrupted. Send it again.' })
-  } else if (!store.getState().result && last.result) {
-    store.setState({ result: last.result })
-  }
+export async function retryRun(queryClient: QueryClient, conversationId: string, runId: string) {
+  if (useUiStore.getState().streamingRunId) return
+  const run = await submitRun(conversationId, '', requestId(), runId)
+  await queryClient.invalidateQueries({ queryKey: ['conversation', conversationId] })
+  await followSavedRun(queryClient, run)
 }
 
-export async function clearConversation(): Promise<string | null> {
-  try {
-    await resetSession()
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 409) return error.message
-    throw error
-  }
-  useResearchStore.getState().clearLocal()
-  return null
+export function useRunRecovery(detail: ConversationDetail | undefined) {
+  const queryClient = useQueryClient()
+  const running = detail?.runs.find((run) => run.status === 'queued' || run.status === 'running')
+  useEffect(() => {
+    if (running) void followSavedRun(queryClient, running)
+  }, [queryClient, running])
 }

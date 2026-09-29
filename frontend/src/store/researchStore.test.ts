@@ -1,83 +1,74 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ResearchResult } from '../api/types'
+import { QueryClient } from '@tanstack/react-query'
+import type { Run } from '../api/types'
 import { json, mockFetch, sseResponse } from '../test/http'
-import { clearConversation, recoverResearch, sendMessage, useResearchStore } from './researchStore'
+import { followSavedRun, sendMessage, takeEvent, useUiStore } from './researchStore'
 
-const result: ResearchResult = {
+const run: Run = {
+  id: 'r1',
+  conversation_id: 'c1',
+  request_id: 'request-1',
+  status: 'running',
   query: 'transformers',
-  answer: 'Attention is all you need.',
-  citations: [],
-  sources: { arxiv: 1 },
-  needs_clarification: false,
-  can_preview_plan: true,
-  generation: 'g1',
+  retry_of_run_id: null,
+  error: null,
+  last_seq: 0,
+  created_at: '',
+  finished_at: null,
+  result: null,
 }
 
 beforeEach(() => {
-  useResearchStore.setState({ messages: [], result: null, draft: null, generation: undefined, pendingQuery: null, progress: [], streaming: false })
+  sessionStorage.clear()
+  useUiStore.setState({ drafts: {}, streamingRunId: null, progress: [], streamNotice: null })
 })
 
 afterEach(() => vi.unstubAllGlobals())
 
 describe('research store', () => {
-  it('streams a question into the transcript and stores the result', async () => {
+  it('ignores a replayed event sequence', () => {
+    const seen = new Set<number>()
+    expect(takeEvent(seen, { seq: 1 })).toBe(true)
+    expect(takeEvent(seen, { seq: 1 })).toBe(false)
+    expect(takeEvent(seen, { seq: 2 })).toBe(true)
+  })
+
+  it('leaves the legacy browser snapshot untouched', () => {
+    sessionStorage.setItem('research-copilot', JSON.stringify({ state: { messages: [{ id: 'old', content: 'secret' }] } }))
+    expect(useUiStore.persist.getOptions().name).toBe('research-copilot:v2')
+    expect(useUiStore.getState().drafts).toEqual({})
+    expect(sessionStorage.getItem('research-copilot')).toContain('secret')
+  })
+
+  it('submits once and reconciles the saved transcript', async () => {
+    const calls = mockFetch({
+      'POST /api/conversations/c1/runs': () => json({ ...run, last_seq: 0 }),
+      'GET /api/runs/r1/events?after=0': () =>
+        sseResponse([
+          { type: 'progress', seq: 1, run_id: 'r1', node: 'prepare' },
+          { type: 'progress', seq: 1, run_id: 'r1', node: 'prepare' },
+          { type: 'result', seq: 2, run_id: 'r1', run: { ...run, status: 'completed', result: null } },
+        ]),
+      'GET /api/conversations/c1': () => json({ id: 'c1', messages: [], runs: [], drafts: [] }),
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    await sendMessage(client, 'c1', '  transformers ')
+    const submitted = calls.filter((call) => call.url === '/api/conversations/c1/runs')
+    expect(submitted).toHaveLength(1)
+    expect(JSON.parse(submitted[0].body as string).message).toBe('transformers')
+    expect(useUiStore.getState().streamingRunId).toBeNull()
+  })
+
+  it('treats a lost stream as a connection problem until the run settles', async () => {
     mockFetch({
-      'POST /api/research': () =>
-        sseResponse([{ type: 'progress', node: 'prepare' }, { type: 'result', ...result }]),
+      'GET /api/runs/r1/events?after=0': () => {
+        throw new Error('socket closed')
+      },
+      'GET /api/runs/r1': () => json({ ...run, status: 'running' }),
     })
-    await sendMessage('  transformers ')
-    const state = useResearchStore.getState()
-    expect(state.messages.map((m) => [m.role, m.content])).toEqual([
-      ['user', 'transformers'],
-      ['assistant', 'Attention is all you need.'],
-    ])
-    expect(state.result).toEqual(result)
-    expect(state.pendingQuery).toBeNull()
-    expect(state.streaming).toBe(false)
-  })
-
-  it('shows a rejected request as an error message', async () => {
-    mockFetch({ 'POST /api/research': () => json({ detail: 'Research is already running.' }, 409) })
-    await sendMessage('again')
-    expect(useResearchStore.getState().messages.at(-1)).toMatchObject({
-      role: 'error',
-      content: 'Research is already running.',
-    })
-  })
-
-  it('clears artifacts when the Notion connection generation changes', () => {
-    const { syncGeneration } = useResearchStore.getState()
-    syncGeneration('g1')
-    useResearchStore.setState({ result, draft: { draft_id: 'd', title: 't', markdown: 'm' } })
-    syncGeneration('g1')
-    expect(useResearchStore.getState().result).toEqual(result)
-    syncGeneration(null)
-    expect(useResearchStore.getState()).toMatchObject({ result: null, draft: null, generation: null })
-  })
-
-  it('recovers a result that finished while the page was reloading', async () => {
-    useResearchStore.setState({ pendingQuery: 'transformers', messages: [{ id: '1', role: 'user', content: 'transformers' }] })
-    mockFetch({ 'GET /api/research/last': () => json({ running: false, result }) })
-    await recoverResearch()
-    const state = useResearchStore.getState()
-    expect(state.messages.at(-1)).toMatchObject({ role: 'assistant', content: result.answer })
-    expect(state.pendingQuery).toBeNull()
-  })
-
-  it('reattaches to a run that is still going', async () => {
-    useResearchStore.setState({ pendingQuery: 'transformers' })
-    mockFetch({
-      'GET /api/research/last': () => json({ running: true, result: null }),
-      'GET /api/research/events': () => sseResponse([{ type: 'result', ...result }]),
-    })
-    await recoverResearch()
-    expect(useResearchStore.getState().result).toEqual(result)
-  })
-
-  it('keeps the transcript when the server refuses to reset mid-run', async () => {
-    useResearchStore.setState({ messages: [{ id: '1', role: 'user', content: 'q' }] })
-    mockFetch({ 'POST /api/session/reset': () => json({ detail: 'Wait for the current research to finish.' }, 409) })
-    expect(await clearConversation()).toBe('Wait for the current research to finish.')
-    expect(useResearchStore.getState().messages).toHaveLength(1)
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    await followSavedRun(client, run)
+    expect(useUiStore.getState().streamNotice).toBe('The progress stream disconnected. Research is still running.')
+    expect(useUiStore.getState().streamingRunId).toBeNull()
   })
 })

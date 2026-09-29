@@ -1,6 +1,5 @@
-import type { Citation } from '../../api/types'
+import type { Citation, ResearchResult } from '../../api/types'
 import { citationDetail, groupCitations, sourceLabel } from '../../lib/citations'
-import { useResearchStore } from '../../store/researchStore'
 
 function SourcesSummary({ sources }: { sources: Record<string, number> }) {
   const entries = Object.entries(sources)
@@ -32,8 +31,7 @@ function CitationItem({ citation }: { citation: Citation }) {
   )
 }
 
-export function ArtifactsPanel() {
-  const result = useResearchStore((state) => state.result)
+export function ArtifactsPanel({ result }: { result: ResearchResult | null }) {
   const groups = groupCitations(result?.citations ?? [])
   return (
     <section className="panel">

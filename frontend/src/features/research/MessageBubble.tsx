@@ -1,7 +1,7 @@
 import { Markdown } from '../../components/Markdown'
-import type { ChatMessage } from '../../store/researchStore'
+import type { ConversationMessage } from '../../api/types'
 
-export function MessageBubble({ message }: { message: ChatMessage }) {
+export function MessageBubble({ message }: { message: ConversationMessage }) {
   return (
     <div className={`message ${message.role}`} data-role={message.role}>
       {message.role === 'assistant' ? <Markdown>{message.content}</Markdown> : <p>{message.content}</p>}

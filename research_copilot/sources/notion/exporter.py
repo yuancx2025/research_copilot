@@ -1,4 +1,4 @@
-"""Publish a displayed study-plan draft to Notion."""
+"""Publish a saved study-plan draft to Notion."""
 import asyncio
 import hashlib
 import json
@@ -27,11 +27,11 @@ class ExportService:
         except Exception:
             return ExportResult(status='failure', message='Check the destination and connection, then generate a new preview.')
         key = hashlib.sha256(json.dumps([draft.draft_id, destination, draft.connection_generation]).encode()).hexdigest()
-        existing = await asyncio.to_thread(self.ledger.claim, key)
+        existing = await self.ledger.claim(key, draft_id=draft.draft_id, destination=destination)
         if existing:
             if existing.status == 'pending' and key not in self._in_flight:
                 existing = STALE_UNKNOWN
-                await asyncio.to_thread(self.ledger.finish, key, existing)
+                await self.ledger.finish(key, existing)
             return existing
         result = None
         self._in_flight.add(key)
@@ -63,5 +63,5 @@ class ExportService:
         finally:
             self._in_flight.discard(key)
             if result is not None:
-                await asyncio.to_thread(self.ledger.finish, key, result)
+                await asyncio.shield(self.ledger.finish(key, result))
         return result

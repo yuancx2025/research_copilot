@@ -1,4 +1,4 @@
-"""In-process fakes for API tests: no models, vector store, or network."""
+"""In-process fakes for API tests: no models, vector store, or network. Records live in Postgres."""
 import asyncio
 import json
 from pathlib import Path
@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 from research_copilot.app.main import create_app
 from research_copilot.core.research_service import ResearchService
+from research_copilot.db.repositories import ResearchRepository
 from research_copilot.storage.export_store import ExportResult
 
 CITATIONS = [
@@ -18,28 +19,42 @@ CITATIONS = [
 ]
 
 
-class FakeChat:
-    def __init__(self, events=None, gate=None):
-        self.events = events if events is not None else [
-            {'type': 'progress', 'node': 'prepare'},
-            {'type': 'progress', 'node': 'classify_intent', 'agents': ['arxiv', 'github']},
-            {'type': 'progress', 'node': 'arxiv_agent', 'source': 'arxiv'},
-            {'type': 'result', 'answer': 'Transformers use attention.', 'needs_clarification': False,
-             'research_data': {'citations': CITATIONS, 'agent_results': {'arxiv': [1, 2], 'github': [1]}}},
-        ]
-        self.gate = gate
-        self.cleared = 0
-        self.queries = []
+def result_event(answer='Transformers use attention.', citations=CITATIONS, checkpoint='cp-1',
+                 needs_clarification=False, agent_results=None):
+    return {'type': 'result', 'answer': answer, 'needs_clarification': needs_clarification,
+            'checkpoint_id': checkpoint,
+            'research_data': {'citations': citations,
+                              'agent_results': agent_results if agent_results is not None else {'arxiv': [1, 2], 'github': [1]}}}
 
-    async def chat_stream(self, message):
-        self.queries.append(message)
-        for event in self.events:
+
+DEFAULT_EVENTS = [
+    {'type': 'progress', 'node': 'prepare'},
+    {'type': 'progress', 'node': 'classify_intent', 'agents': ['arxiv', 'github']},
+    {'type': 'progress', 'node': 'arxiv_agent', 'source': 'arxiv'},
+    result_event(),
+]
+
+
+class FakeChat:
+    """Replays scripted events. ``script`` may be a list, or a list of lists consumed per call."""
+
+    def __init__(self, events=None, gate=None, script=None):
+        self.script = list(script) if script else None
+        self.events = events if events is not None else DEFAULT_EVENTS
+        self.gate = gate
+        self.calls = []
+
+    @property
+    def queries(self):
+        return [message for message, _, _ in self.calls]
+
+    async def chat_stream(self, message, config, resume=False):
+        self.calls.append((message, config, resume))
+        events = self.script.pop(0) if self.script else self.events
+        for event in events:
             if self.gate is not None:
                 await self.gate.wait()
             yield event
-
-    def clear_session(self):
-        self.cleared += 1
 
 
 class FakeDocuments:
@@ -75,17 +90,30 @@ class FakeExporter:
         return ExportResult(status='success', page_id='page-1', url='https://notion.so/page-1')
 
 
-def make_service(backend='rest', chat=None, notion=None):
+def fake_notion(generation='g1', connected=True, connection_id='conn-1'):
+    connection = SimpleNamespace(generation=generation, connected=connected, listeners=[],
+                                 record=SimpleNamespace(connection_id=connection_id))
+    return SimpleNamespace(connection=connection)
+
+
+def make_service(db, backend='rest', chat=None, notion=None, exporter=None):
     rag = SimpleNamespace(llm=object(), tool_registry=SimpleNamespace(available_ids=lambda: ['arxiv', 'web']))
     config = SimpleNamespace(NOTION_BACKEND=backend, NOTION_PARENT_PAGE_ID='parent-page')
-    return ResearchService(rag, notion, FakeExporter(), config, documents=FakeDocuments(), chat=chat or FakeChat())
+    return ResearchService(rag, ResearchRepository(db), notion, exporter or FakeExporter(), config,
+                           documents=FakeDocuments(), chat=chat or FakeChat())
 
 
-def make_app(service, backend='rest', connection=None, tmp_path=None):
+def make_app(service, db, backend='rest', connection=None, tmp_path=None):
     config = SimpleNamespace(NOTION_BACKEND=backend, OAUTH_BASE_URL='http://127.0.0.1:7860',
                              OAUTH_TIMEOUT=300, FRONTEND_URL='', NOTION_PARENT_PAGE_ID='parent-page')
     return create_app(config, connection=connection, research_factory=lambda **_: service,
-                      frontend_dir=tmp_path)
+                      frontend_dir=tmp_path, database=db)
+
+
+def fresh(db):
+    """Another handle on the same test schema, for apps whose lifespans overlap."""
+    from research_copilot.db.engine import Database
+    return Database(db.url, db.schema, pool_size=2, checkpoint_pool_size=2)
 
 
 def parse_sse(text):
@@ -95,6 +123,19 @@ def parse_sse(text):
         if data:
             events.append(json.loads('\n'.join(data)))
     return events
+
+
+def submit(client, conversation_id, message, request_id, **extra):
+    return client.post(f'/api/conversations/{conversation_id}/runs',
+                       json={'message': message, 'request_id': request_id, **extra})
+
+
+def run_to_end(client, conversation_id, message, request_id, **extra):
+    """Submit, then follow the run's event stream until it settles. Returns (run, events)."""
+    response = submit(client, conversation_id, message, request_id, **extra)
+    assert response.status_code == 202, response.text
+    run = response.json()
+    return run, parse_sse(client.get(f"/api/runs/{run['id']}/events").text)
 
 
 async def settle():

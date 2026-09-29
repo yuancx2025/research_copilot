@@ -8,23 +8,18 @@ from research_copilot.app.main import create_app
 from tests.runtime.auth.test_oauth import MemoryStore, OAuthServer, factory, ConnectionService
 
 
-def _app(service, frontend_url=''):
+def _app(service, db, frontend_url=''):
     config = SimpleNamespace(
         NOTION_BACKEND='mcp',
         OAUTH_BASE_URL='http://127.0.0.1:7860',
         OAUTH_TIMEOUT=300,
         FRONTEND_URL=frontend_url,
     )
-    return create_app(config, connection=service, research_factory=lambda **_: None)
+    return create_app(config, connection=service, research_factory=lambda **_: None, database=db)
 
 
-@pytest.fixture(autouse=True)
-def _data_dir(tmp_path, monkeypatch):
-    monkeypatch.setenv('RESEARCH_COPILOT_DATA_DIR', str(tmp_path))
-
-
-def _client(service):
-    return TestClient(_app(service), base_url='http://127.0.0.1')
+def _client(service, db):
+    return TestClient(_app(service, db), base_url='http://127.0.0.1')
 
 
 def _csrf(client):
@@ -35,9 +30,9 @@ def _csrf(client):
     return body['csrf']
 
 
-def test_csrf_and_cross_origin_writes_rejected():
+def test_csrf_and_cross_origin_writes_rejected(db):
     service = ConnectionService(MemoryStore(), http_factory=factory(OAuthServer()))
-    with _client(service) as client:
+    with _client(service, db) as client:
         assert client.post('/oauth/notion/start').status_code == 403
         csrf = _csrf(client)
         blocked = client.post(
@@ -47,10 +42,10 @@ def test_csrf_and_cross_origin_writes_rejected():
         assert blocked.status_code == 403
 
 
-@pytest.mark.asyncio
-async def test_callback_mismatch_replay_and_disconnect():
+def test_callback_mismatch_replay_and_disconnect(db):
+    from tests.app.fakes import fresh
     service = ConnectionService(MemoryStore(), http_factory=factory(OAuthServer()))
-    with _client(service) as client, TestClient(_app(service), base_url='http://127.0.0.1') as other:
+    with _client(service, db) as client, TestClient(_app(service, fresh(db)), base_url='http://127.0.0.1') as other:
         csrf = _csrf(client)
         started = client.post('/oauth/notion/start', headers={'X-CSRF-Token': csrf})
         assert started.status_code == 200

@@ -2,12 +2,14 @@ import { apiFetch, getJson, sendJson, setCsrfToken } from './client'
 import { readEventStream } from './sse'
 import type {
   AppConfig,
+  Conversation,
+  ConversationDetail,
   Draft,
   ExportResult,
-  LastResearch,
   NotionPage,
   NotionStatus,
   ResearchEvent,
+  Run,
   UploadEvent,
 } from './types'
 
@@ -28,24 +30,31 @@ export async function uploadDocuments(files: File[], onEvent: (event: UploadEven
   await readEventStream(response, onEvent)
 }
 
-export async function startResearch(message: string, onEvent: (event: ResearchEvent) => void) {
-  const response = await apiFetch('/api/research', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message }),
+export const listConversations = () => getJson<Conversation[]>('/api/conversations')
+
+export const createConversation = () => sendJson<Conversation>('/api/conversations', 'POST', {})
+
+export const fetchConversation = (id: string) => getJson<ConversationDetail>(`/api/conversations/${id}`)
+
+export const fetchRun = (id: string) => getJson<Run>(`/api/runs/${id}`)
+
+export const submitRun = (conversationId: string, message: string, requestId: string, retryOfRunId?: string) =>
+  sendJson<Run>(`/api/conversations/${conversationId}/runs`, 'POST', {
+    message,
+    request_id: requestId,
+    retry_of_run_id: retryOfRunId ?? null,
   })
-  await readEventStream(response, onEvent)
+
+export const replyToRun = (runId: string, message: string, requestId: string) =>
+  sendJson<Run>(`/api/runs/${runId}/reply`, 'POST', { message, request_id: requestId })
+
+export async function followRun(runId: string, after: number, onEvent: (event: ResearchEvent) => void, signal?: AbortSignal) {
+  await readEventStream(await apiFetch(`/api/runs/${runId}/events?after=${after}`, { signal }), onEvent)
 }
 
-export async function followResearch(onEvent: (event: ResearchEvent) => void) {
-  await readEventStream(await apiFetch('/api/research/events'), onEvent)
-}
+export const previewStudyPlan = (runId: string) => sendJson<Draft>('/api/study-plan/preview', 'POST', { run_id: runId })
 
-export const fetchLastResearch = () => getJson<LastResearch>('/api/research/last')
-
-export const resetSession = () => sendJson<void>('/api/session/reset', 'POST')
-
-export const previewStudyPlan = () => sendJson<Draft>('/api/study-plan/preview', 'POST')
+export const fetchDraft = (id: string) => getJson<Draft>(`/api/study-plan/drafts/${id}`)
 
 export const exportStudyPlan = (draftId: string, destination: string) =>
   sendJson<ExportResult>('/api/study-plan/export', 'POST', { draft_id: draftId, destination })

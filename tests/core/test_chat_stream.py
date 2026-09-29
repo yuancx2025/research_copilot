@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 import pytest
 from langchain_core.messages import AIMessage
-from research_copilot.core.chat_interface import ChatInterface
+from research_copilot.core.chat_interface import ChatInterface, graph_config
 
 
 def _rag(chunks, values):
@@ -11,7 +11,7 @@ def _rag(chunks, values):
             yield chunk
 
     async def aget_state(config):
-        return SimpleNamespace(values=values)
+        return SimpleNamespace(values=values, config={'configurable': {'checkpoint_id': 'cp-1'}})
 
     async def prepare_run(notion):
         return None
@@ -23,8 +23,8 @@ def _rag(chunks, values):
     )
 
 
-async def _collect(rag, message='q'):
-    return [event async for event in ChatInterface(rag).chat_stream(message)]
+async def _collect(rag, message='q', **kwargs):
+    return [event async for event in ChatInterface(rag).chat_stream(message, graph_config('thread-1'), **kwargs)]
 
 
 @pytest.mark.asyncio
@@ -49,8 +49,32 @@ async def test_progress_events_map_graph_nodes():
     result = events[-1]
     assert result['type'] == 'result' and result['answer'] == 'answer'
     assert result['needs_clarification'] is False
+    assert result['checkpoint_id'] == 'cp-1'
     assert result['research_data']['sources'] == ['arxiv']
     assert result['research_data']['citation_count'] == 1
+
+
+@pytest.mark.asyncio
+async def test_resume_continues_from_human_input():
+    seen = {}
+
+    async def aupdate_state(config, values, as_node):
+        seen['as_node'] = as_node
+        seen['reply'] = values['messages'][-1].content
+        return {'configurable': {**config['configurable'], 'checkpoint_id': 'cp-2'}}
+
+    async def astream(inputs, config, stream_mode):
+        seen['inputs'] = inputs
+        seen['checkpoint'] = config['configurable']['checkpoint_id']
+        yield {'aggregate': {}}
+
+    rag = _rag([], {'messages': [AIMessage(content='answer')], 'questionIsClear': True,
+                    'citations': [], 'agent_results': {}})
+    rag.agent_graph.aupdate_state = aupdate_state
+    rag.agent_graph.astream = astream
+    events = await _collect(rag, 'the NLP one', resume=True)
+    assert seen == {'as_node': 'human_input', 'reply': 'the NLP one', 'inputs': None, 'checkpoint': 'cp-2'}
+    assert events[-1]['type'] == 'result'
 
 
 @pytest.mark.asyncio

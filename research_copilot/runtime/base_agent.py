@@ -5,7 +5,6 @@ from langchain_core.tools import BaseTool
 from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode, tools_condition
-from langgraph.checkpoint.memory import InMemorySaver
 from functools import partial
 from research_copilot.runtime.agent_state import AgentState
 from research_copilot.runtime.agent_node import agent_node
@@ -116,8 +115,6 @@ class BaseAgent(ABC):
                 " Tool budget exhausted. Answer from available evidence and explain limitations.")] + state["messages"])
             return {"messages": [response]}
         
-        checkpointer = InMemorySaver()
-        
         # Create agent-specific node with custom system prompt
         agent_node_func = partial(
             agent_node, 
@@ -141,7 +138,8 @@ class BaseAgent(ABC):
         agent_builder.add_edge("finalize", "extract_answer")
         agent_builder.add_edge("extract_answer", END)
         
-        return agent_builder.compile(checkpointer=checkpointer)
+        # No checkpointer of its own: as a node of the orchestrator it inherits the parent's.
+        return agent_builder.compile()
     
     def extract_answer_with_citations(self, state: AgentState) -> Dict[str, Any]:
         """

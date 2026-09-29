@@ -1,12 +1,23 @@
 import { useEffect, useRef } from 'react'
-import { useResearchStore } from '../../store/researchStore'
+import type { ConversationMessage, ProgressEvent, Run } from '../../api/types'
 import { MessageBubble } from './MessageBubble'
 import { ProgressTimeline } from './ProgressTimeline'
 
-export function ChatThread({ placeholder }: { placeholder: string }) {
-  const messages = useResearchStore((state) => state.messages)
-  const streaming = useResearchStore((state) => state.streaming)
-  const progress = useResearchStore((state) => state.progress)
+export function ChatThread({
+  placeholder,
+  messages,
+  streaming,
+  progress,
+  retryable,
+  onRetry,
+}: {
+  placeholder: string
+  messages: ConversationMessage[]
+  streaming: boolean
+  progress: ProgressEvent[]
+  retryable: Run | null
+  onRetry: () => void
+}) {
   const end = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -19,6 +30,11 @@ export function ChatThread({ placeholder }: { placeholder: string }) {
       {messages.map((message) => (
         <MessageBubble key={message.id} message={message} />
       ))}
+      {retryable && (
+        <button type="button" onClick={onRetry} disabled={streaming}>
+          Retry
+        </button>
+      )}
       {streaming && <ProgressTimeline events={progress} />}
       <div ref={end} />
     </div>

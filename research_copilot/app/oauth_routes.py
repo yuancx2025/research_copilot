@@ -1,6 +1,7 @@
 """Browser-bound local OAuth routes; state-changing endpoints require CSRF."""
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
+from research_copilot.storage.credential_keys import CredentialError
 from .security import session, verify_csrf
 
 
@@ -18,8 +19,10 @@ def oauth_router(service, frontend_url=''):
             return {'authorization_url': await service.start(data['id'])}
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from None
+        except CredentialError as exc:
+            raise HTTPException(503, str(exc)) from None
         except Exception:
-            raise HTTPException(503, 'Could not start authorization. Check Keychain and your network.') from None
+            raise HTTPException(503, 'Could not start authorization. Check your network and try again.') from None
 
     @router.get('/callback')
     async def callback(request: Request, code: str = '', state: str = '', error: str = ''):
@@ -37,7 +40,8 @@ def oauth_router(service, frontend_url=''):
         try:
             await service.disconnect()
         except Exception:
-            raise HTTPException(503, 'Connection stopped, but Keychain removal failed. Retry disconnect.') from None
-        return {'status':'disconnected', 'message':'Local credentials removed; revoke provider access in Notion settings if desired.'}
+            raise HTTPException(503, 'Notion use has stopped, but the saved credentials could not be removed '
+                                     'from the database. Retry disconnect.') from None
+        return {'status':'disconnected', 'message':'Saved credentials removed; revoke provider access in Notion settings if desired.'}
 
     return router

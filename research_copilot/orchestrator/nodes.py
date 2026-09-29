@@ -14,23 +14,44 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+MAX_CLARIFICATION_CONTEXT = 2000
+
+
 def analyze_chat_and_summarize(state: State, llm):
-    if len(state["messages"]) < 4:
-        return {"conversation_summary": ""}
-    
+    """Fold the previous turn into a running summary.
+
+    Clear questions prune the graph messages, so the summary is the only
+    context that survives between turns; it must accumulate, not restart.
+    """
+    prior = state.get("conversation_summary", "") or ""
     relevant_msgs = [
         msg for msg in state["messages"][:-1]
         if isinstance(msg, (HumanMessage, AIMessage))
         and not getattr(msg, "tool_calls", None)
     ]
+    previous_query = state.get("originalQuery", "")
+    if relevant_msgs and previous_query and not isinstance(relevant_msgs[0], HumanMessage):
+        relevant_msgs = [HumanMessage(content=previous_query)] + relevant_msgs
     if not relevant_msgs:
-        return {"conversation_summary": ""}
+        return {"conversation_summary": prior, "agent_answers": [{"__reset__": True}]}
 
-    summary_prompt = get_conversation_summary_prompt(relevant_msgs)
-    # Gemini requires at least one non-system message, use HumanMessage instead of SystemMessage
-    summary_response = llm.with_config(temperature=0.2).invoke([HumanMessage(content=summary_prompt)])
-    summary_text = extract_content_as_string(summary_response)
-    return {"conversation_summary": summary_text, "agent_answers": [{"__reset__": True}]}
+    summary_prompt = get_conversation_summary_prompt(relevant_msgs, prior)
+    try:
+        # Gemini requires at least one non-system message, use HumanMessage instead of SystemMessage
+        summary_response = llm.with_config(temperature=0.2).invoke([HumanMessage(content=summary_prompt)])
+        summary_text = extract_content_as_string(summary_response).strip()
+    except Exception as e:
+        logger.warning(f"Conversation summary failed: {e}. Keeping the previous summary.")
+        summary_text = ""
+    return {"conversation_summary": summary_text or prior, "agent_answers": [{"__reset__": True}]}
+
+
+def _analysis_context(state: State) -> str:
+    summary = state.get("conversation_summary", "") or ""
+    pending = state.get("clarification_context", "") or ""
+    if pending:
+        return (summary + "\n\n" if summary else "") + "Clarification exchange so far:\n" + pending
+    return summary
 
 def analyze_and_rewrite_query(state: State, llm):
     # Skip analysis if creating study plan - data already in state
@@ -44,9 +65,8 @@ def analyze_and_rewrite_query(state: State, llm):
         }
     
     last_message = state["messages"][-1]
-    conversation_summary = state.get("conversation_summary", "")
 
-    prompt = get_query_analysis_prompt(last_message.content, conversation_summary)
+    prompt = get_query_analysis_prompt(last_message.content, _analysis_context(state))
 
     try:
         llm_with_structure = llm.with_config(temperature=0.1).with_structured_output(QueryAnalysis)
@@ -60,7 +80,8 @@ def analyze_and_rewrite_query(state: State, llm):
                 "questionIsClear": True,
                 "messages": [],
                 "originalQuery": last_message.content,
-                "rewrittenQuestions": [last_message.content]
+                "rewrittenQuestions": [last_message.content],
+                "clarification_context": "",
             }
         
         if response.is_clear:
@@ -69,17 +90,24 @@ def analyze_and_rewrite_query(state: State, llm):
                 for m in state["messages"]
                 if not isinstance(m, SystemMessage)
             ]
+            questions = (response.questions if hasattr(response, 'questions') else None) or [last_message.content]
+            # A reply like "the NLP one" only makes sense with the exchange it answers.
+            original = questions[0] if state.get("clarification_context") else last_message.content
             return {
                 "questionIsClear": True,
                 "messages": delete_all,
-                "originalQuery": last_message.content,
-                "rewrittenQuestions": response.questions if hasattr(response, 'questions') else [last_message.content]
+                "originalQuery": original,
+                "rewrittenQuestions": questions,
+                "clarification_context": "",
             }
         else:
             clarification = (response.clarification_needed if hasattr(response, 'clarification_needed') else None) or "I need more information to understand your question."
+            pending = (state.get("clarification_context", "") or "")
+            pending = (pending + f"\nUser: {last_message.content}\nAssistant: {clarification}").strip()
             return {
                 "questionIsClear": False,
-                "messages": [AIMessage(content=clarification)]
+                "messages": [AIMessage(content=clarification)],
+                "clarification_context": pending[-MAX_CLARIFICATION_CONTEXT:],
             }
     except Exception as e:
         # Fallback on any error: treat as clear and use original query
@@ -88,7 +116,8 @@ def analyze_and_rewrite_query(state: State, llm):
             "questionIsClear": True,
             "messages": [],
             "originalQuery": last_message.content,
-            "rewrittenQuestions": [last_message.content]
+            "rewrittenQuestions": [last_message.content],
+            "clarification_context": "",
         }
 
 def classify_research_intent(state: State, llm) -> Dict[str, Any]:

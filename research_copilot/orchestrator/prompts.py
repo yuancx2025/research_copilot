@@ -1,23 +1,29 @@
 from typing import Optional, Dict, Any
 from langchain_core.messages import HumanMessage
 
-def get_conversation_summary_prompt(messages):
-    summary_prompt = """**Summarize the key topics and context from this conversation in 1-2 concise sentences.**
+SUMMARY_MESSAGE_CHARS = 1500
+
+
+def get_conversation_summary_prompt(messages, prior_summary: str = ""):
+    summary_prompt = """**Summarize the key topics and context from this conversation in 1-3 concise sentences.**
    Focus on:
    - Main topics discussed
    - Important facts or entities mentioned
    - Any unresolved questions
 
    Discard: greetings, misunderstandings, off-topic content.
+   If an earlier summary is given, fold the new exchange into it instead of replacing it.
    If no meaningful topics exist, return an empty string.
 
-   Conversation:
+   """
+    if prior_summary.strip():
+        summary_prompt += f"Earlier summary:\n{prior_summary.strip()}\n\n   "
+    summary_prompt += "Conversation:\n\n"
 
-    """
-    
     for msg in messages[-6:]:
         role = "User" if isinstance(msg, HumanMessage) else "Assistant"
-        summary_prompt += f"{role}: {msg.content}\n"
+        content = msg.content if isinstance(msg.content, str) else str(msg.content)
+        summary_prompt += f"{role}: {content[:SUMMARY_MESSAGE_CHARS]}\n"
 
     summary_prompt += "\nSummary:"
     return summary_prompt

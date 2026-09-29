@@ -10,6 +10,7 @@ class State(MessagesState):
     """State for main agent graph with multi-agent orchestration support"""
     questionIsClear: bool = False
     conversation_summary: str = ""
+    clarification_context: str = ""
     originalQuery: str = "" 
     rewrittenQuestions: List[str] = []
     agent_answers: Annotated[List[dict], accumulate_or_reset] = []

@@ -57,6 +57,25 @@ a:hover {
   flex-wrap: wrap;
 }
 
+.conversation-select {
+  display: flex;
+  gap: 0.5rem;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.conversation-select label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.conversation-select select {
+  min-width: 14rem;
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+}
+
 /* Shell */
 
 .shell {
