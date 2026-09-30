@@ -85,7 +85,7 @@ async def test_disconnected_explicit_notion_request_does_not_run_research():
         notion_service=None,
         _graph_generation=None,
         tool_registry=SimpleNamespace(available_ids=lambda: []),
-        agent_graph=SimpleNamespace(ainvoke=None),
+        agent_graph=SimpleNamespace(astream=None, aget_state=None),
         get_config=lambda: {},
     )
     async def prepare_run(notion):
@@ -99,15 +99,17 @@ async def test_disconnected_explicit_notion_request_does_not_run_research():
 @pytest.mark.asyncio
 async def test_ordinary_research_ignores_idiomatic_notion():
     invoked = {}
-    async def ainvoke(state, config):
+    async def astream(state, config, stream_mode):
         invoked['state'] = state
-        return {'messages': [AIMessage(content='ok')], 'citations': [], 'agent_results': {}}
+        yield {'aggregate': {}}
+    async def aget_state(config):
+        return SimpleNamespace(values={'messages': [AIMessage(content='ok')], 'citations': [], 'agent_results': {}})
     rag = SimpleNamespace(
         llm=object(),
         notion_service=None,
         _graph_generation=None,
         tool_registry=SimpleNamespace(available_ids=lambda: []),
-        agent_graph=SimpleNamespace(ainvoke=ainvoke),
+        agent_graph=SimpleNamespace(astream=astream, aget_state=aget_state),
         get_config=lambda: {},
     )
     async def prepare_run(notion):

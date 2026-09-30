@@ -1,6 +1,9 @@
+import logging
 from langchain_core.messages import HumanMessage
-from typing import Dict, List, Any, Tuple
+from typing import Any, AsyncIterator, Dict, Optional
 from research_copilot.orchestrator.intent import explicit_notion_request
+
+logger = logging.getLogger(__name__)
 
 
 def _extract_text_from_content(content) -> str:
@@ -51,12 +54,35 @@ def _extract_text_from_content(content) -> str:
         return str(content) if content else ""
 
 
+def _progress_event(node: str, update: Any) -> Dict[str, Any]:
+    event: Dict[str, Any] = {"type": "progress", "node": node}
+    update = update if isinstance(update, dict) else {}
+    if node == "classify_intent":
+        event["agents"] = list(update.get("research_intent") or [])
+    elif node == "analyze_rewrite":
+        event["clear"] = update.get("questionIsClear", True)
+    elif node.endswith("_agent"):
+        event["source"] = node.removesuffix("_agent")
+    return event
+
+
+RECURSION_LIMIT = 50
+
+
+def graph_config(thread_id: str, checkpoint_id: Optional[str] = None) -> Dict[str, Any]:
+    """Per-conversation execution config. A checkpoint_id forks from that stable point."""
+    configurable = {"thread_id": thread_id}
+    if checkpoint_id:
+        configurable.update(checkpoint_ns="", checkpoint_id=checkpoint_id)
+    return {"configurable": configurable, "recursion_limit": RECURSION_LIMIT}
+
+
 class ChatInterface:
     
     def __init__(self, rag_system):
         self.rag_system = rag_system
         
-    async def chat(self, message, history):
+    async def chat(self, message, config, history=None):
         """
         Process chat message and return answer with research artifacts.
         
@@ -66,28 +92,75 @@ class ChatInterface:
             - agent_results: Dict of results by agent type
             - sources: List of source types used
         """
+        async for event in self.chat_stream(message, config):
+            if event["type"] == "result":
+                return event["answer"], event["research_data"]
+            if event["type"] == "error":
+                return event["message"], {}
+        return "No response generated.", {}
+
+    async def chat_stream(self, message, config, resume=False) -> AsyncIterator[Dict[str, Any]]:
+        """
+        Run the research graph and yield progress events, then exactly one
+        ``result`` or ``error`` event.
+
+        ``config`` comes from ``graph_config``. With ``resume`` the message
+        answers the clarification the thread is paused on, and execution
+        continues from ``human_input`` instead of restarting the graph.
+
+        A result event carries ``answer``, ``research_data``,
+        ``needs_clarification`` (the graph paused before ``human_input``) and
+        the ``checkpoint_id`` of the thread's latest checkpoint.
+        """
         if not getattr(self.rag_system, 'llm', None):
-            return "⚠️ System not initialized!", {}
-            
+            yield {"type": "error", "message": "⚠️ System not initialized!"}
+            return
+
         try:
+            yield {"type": "progress", "node": "prepare"}
             notion = getattr(self.rag_system, "notion_service", None)
             await self.rag_system.prepare_run(notion)
             generation = notion.connection.generation if notion else None
             wants_notion = explicit_notion_request(message)
             if wants_notion and (not notion or not notion.connection.connected):
-                return "Connect Notion before searching your workspace.", {}
+                yield {"type": "error", "message": "Connect Notion before searching your workspace."}
+                return
             if wants_notion and not self.rag_system._graph_generation:
-                return "Notion is temporarily unavailable. Check the connection and retry.", {}
+                yield {"type": "error", "message": "Notion is temporarily unavailable. Check the connection and retry."}
+                return
             sources = list(self.rag_system.tool_registry.available_ids())
-            result = await self.rag_system.agent_graph.ainvoke(
-                {"messages": [HumanMessage(content=message.strip())], "available_sources": sources,
-                 "citations": [{"__reset__": True}], "agent_answers": [{"__reset__": True}],
-                 "agent_results": {}, "create_study_plan": False},
-                self.rag_system.get_config()
-            )
+            graph = self.rag_system.agent_graph
+            reset = {"available_sources": sources, "citations": [{"__reset__": True}],
+                     "agent_answers": [{"__reset__": True}], "agent_results": {}, "create_study_plan": False}
+            if resume:
+                updated = await graph.aupdate_state(
+                    config, {"messages": [HumanMessage(content=message.strip())], **reset}, as_node="human_input")
+                config = {**config, "configurable": updated["configurable"]}
+                inputs = None
+            else:
+                inputs = {"messages": [HumanMessage(content=message.strip())], "clarification_context": "", **reset}
+
+            interrupted = False
+            async for chunk in graph.astream(inputs, config, stream_mode="updates"):
+                for node, update in chunk.items():
+                    if node == "__interrupt__":
+                        interrupted = True
+                        continue
+                    yield _progress_event(node, update)
+
             if notion and (generation != notion.connection.generation or
                            (generation and not notion.connection.connected)):
-                return "The Notion connection changed during research. Start a new request.", {}
+                yield {"type": "error", "message": "The Notion connection changed during research. Start a new request."}
+                return
+
+            configurable = config.get("configurable", {}) if isinstance(config, dict) else {}
+            thread_id = configurable.get("thread_id") if isinstance(configurable, dict) else None
+            state_config = {"configurable": {"thread_id": thread_id}} if thread_id else (
+                config if isinstance(config, dict) else {"configurable": {}})
+            latest = await graph.aget_state(state_config)
+            result = latest.values
+            latest_config = getattr(latest, "config", None) or {}
+            checkpoint_id = latest_config.get("configurable", {}).get("checkpoint_id") if isinstance(latest_config, dict) else None
             
             # Extract answer (handle Gemini's structured content format)
             raw_content = result["messages"][-1].content if result.get("messages") else "No response generated."
@@ -105,10 +178,10 @@ class ChatInterface:
                 "citation_count": len(citations)
             }
             
-            return answer_text, research_data
+            yield {"type": "result", "answer": answer_text, "research_data": research_data,
+                   "needs_clarification": interrupted or result.get("questionIsClear") is False,
+                   "checkpoint_id": checkpoint_id}
             
         except Exception:
-            return "Research could not complete. Check the model and source connections, then retry.", {}
-    
-    def clear_session(self):
-        self.rag_system.reset_thread()
+            logger.exception("Research graph failed")
+            yield {"type": "error", "message": "Research could not complete. Check the model and source connections, then retry."}

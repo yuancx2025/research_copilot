@@ -2,8 +2,14 @@
 
 The SDK 1.25 context is inspected only in finish_authorization(), at the version
 boundary. Runtime calls never depend on its in-memory expiry/discovery state.
+
+The credential store is injected (normally the encrypted PostgreSQL store) and
+exposes async ``check``, ``load``, ``save`` and ``delete``. A refresh that
+succeeds remotely but fails to save is kept in memory and only its save is
+retried; the rotated refresh token is never spent twice.
 """
 import asyncio
+import logging
 import secrets
 import time
 import uuid
@@ -14,7 +20,10 @@ from mcp.shared.auth import OAuthClientMetadata, OAuthClientInformationFull, OAu
 from pydantic import AnyUrl
 from research_copilot.runtime.auth.schemas import ConnectionRecord, PendingGrant
 from research_copilot.runtime.mcp.client import AuthorizationRequired, MCPConnectionError
-from research_copilot.storage.credential_store import KeychainStore
+from research_copilot.storage.credential_keys import CredentialError
+from research_copilot.storage.credential_store import CredentialStorageError
+
+logger = logging.getLogger(__name__)
 
 
 class GrantStorage:
@@ -39,14 +48,19 @@ class GrantStorage:
 
 
 class ConnectionService:
-    def __init__(self, auth_provider, store=None, base_url='http://127.0.0.1:7860', timeout=300,
-                 http_factory=httpx.AsyncClient):
+    def __init__(self, auth_provider, store, base_url='http://127.0.0.1:7860', timeout=300,
+                 http_factory=httpx.AsyncClient, save_attempts=3, save_backoff=0.25):
+        if store is None:
+            raise ValueError('ConnectionService requires a credential store.')
         self.auth_provider = auth_provider
-        self.store = store or KeychainStore()
+        self.store = store
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout
         self.http_factory = http_factory
+        self.save_attempts = save_attempts
+        self.save_backoff = save_backoff
         self.record = None
+        self._unsaved = None
         self.pending = None
         self.error = None
         self.lock = asyncio.Lock()
@@ -94,7 +108,7 @@ class ConnectionService:
             raise ValueError('Disconnect is still in progress.')
         if self.pending and not self.pending.task.done():
             raise ValueError('A connection attempt is already in progress.')
-        await self.store.load()
+        await self.store.check()
         loop = asyncio.get_running_loop()
         pending = PendingGrant(session_id, loop.create_future(), loop.create_future(),
                                time.time() + self.timeout)
@@ -147,6 +161,10 @@ class ConnectionService:
             if not pending.url.done():
                 pending.url.cancel()
             raise
+        except CredentialError as exc:
+            self.error = f'{name} authorized, but the connection could not be saved: {exc}'
+            if not pending.url.done():
+                pending.url.set_exception(MCPConnectionError(self.error))
         except Exception:
             self.error = f'{name} authorization failed, was denied, or timed out. Try connecting again.'
             if not pending.url.done():
@@ -190,12 +208,33 @@ class ConnectionService:
         if self.error:
             raise AuthorizationRequired(self.error)
 
+    async def _flush_unsaved(self):
+        """Persist a rotated record before any further use; never refresh again meanwhile."""
+        name = self.auth_provider.display_name
+        for attempt in range(self.save_attempts):
+            try:
+                await self.store.save(self._unsaved)
+            except Exception:
+                logger.warning('Saving refreshed %s credentials failed (attempt %d/%d)',
+                               name, attempt + 1, self.save_attempts)
+                if attempt + 1 < self.save_attempts:
+                    await asyncio.sleep(self.save_backoff * 2 ** attempt)
+                continue
+            self.record, self._unsaved = self._unsaved, None
+            self.error = None
+            return
+        self.error = (f'{name} refreshed its access, but saving it to the database failed. '
+                      'Notion is paused until the save succeeds; check the database connection.')
+        raise CredentialStorageError(self.error)
+
     async def token(self, generation):
         name = self.auth_provider.display_name
         async with self.lock:
-            record = self.record
             if not self.connected or generation != self.generation:
                 raise AuthorizationRequired(f'Connect {name} again before using this tool.')
+            if self._unsaved is not None:
+                await self._flush_unsaved()
+            record = self.record
             if record.expires_at is None or record.expires_at > time.time() + 60:
                 return record.tokens['access_token']
             if not record.tokens.get('refresh_token'):
@@ -233,8 +272,8 @@ class ConnectionService:
             })
             if not self.connected or generation != self.generation:
                 raise AuthorizationRequired('Connection changed during refresh.')
-            await self.store.save(updated)
-            self.record = updated
+            self._unsaved = updated
+            await self._flush_unsaved()
             if not self.connected:
                 raise AuthorizationRequired('Connection was disconnected during refresh.')
             return tokens.access_token
@@ -271,6 +310,7 @@ class ConnectionService:
         try:
             async with self.lock:
                 self.record = None
+                self._unsaved = None
                 self.pending = None
                 self.error = None
                 await self.store.delete()

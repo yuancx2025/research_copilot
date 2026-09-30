@@ -12,6 +12,8 @@ from research_copilot.runtime.auth.schemas import ConnectionRecord
 class MemoryStore:
     def __init__(self, record=None):
         self.record = record
+    async def check(self):
+        return None
     async def load(self):
         return self.record.model_copy(deep=True) if self.record else None
     async def save(self, record):
@@ -124,6 +126,47 @@ async def test_sdk_grant_state_session_replay_and_persistence():
     with pytest.raises(ValueError):
         await service.complete('browser-one','test-code',state)
     assert 'granted-secret' not in str(service.status())
+
+
+class FailThenSave(MemoryStore):
+    def __init__(self, record, failures):
+        super().__init__(record)
+        self.failures = failures
+        self.saves = 0
+
+    async def save(self, record):
+        self.saves += 1
+        if self.saves <= self.failures:
+            from research_copilot.storage.credential_store import CredentialStorageError
+            raise CredentialStorageError('database unavailable')
+        await super().save(record)
+
+
+@pytest.mark.asyncio
+async def test_refresh_save_failure_retries_save_without_another_refresh():
+    count = 0
+
+    async def handler(request):
+        nonlocal count
+        count += 1
+        return httpx.Response(200, json={'access_token': 'new-secret', 'refresh_token': 'rotated', 'expires_in': 3600})
+
+    store = FailThenSave(record(), failures=3)
+    service = ConnectionService(store, http_factory=factory(handler), save_attempts=3, save_backoff=0)
+    await service.initialize()
+    from research_copilot.storage.credential_store import CredentialStorageError
+    with pytest.raises(CredentialStorageError):
+        await service.token('g')
+    assert count == 1 and service._unsaved.tokens['refresh_token'] == 'rotated'
+    assert store.record.tokens['refresh_token'] == 'refresh-secret'
+    assert await service.token('g') == 'new-secret'
+    assert count == 1 and store.record.tokens['refresh_token'] == 'rotated'
+    assert 'new-secret' not in str(service.status())
+
+
+def test_credential_store_is_required():
+    with pytest.raises(ValueError, match='credential store'):
+        _ConnectionService(NotionAuthProvider(), None)
 
 
 @pytest.mark.asyncio

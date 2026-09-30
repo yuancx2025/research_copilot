@@ -1,4 +1,3 @@
-import uuid
 import atexit
 from langchain_core.language_models import BaseChatModel
 from research_copilot.config import settings as config
@@ -55,7 +54,7 @@ class RAGSystem:
         self.parent_store = ParentStoreManager()
         self.chunker = Chunker()
         self.agent_graph = None
-        self.thread_id = str(uuid.uuid4())
+        self.checkpointer = None
         self.tool_registry = None
         self.reranker = None
         self.retriever = None
@@ -74,7 +73,8 @@ class RAGSystem:
             extras=extras,
         )
 
-    def initialize(self):
+    def initialize(self, checkpointer=None):
+        self.checkpointer = checkpointer
         self.gcs_sync = initialize_cloud_storage_sync()
         if self.gcs_sync:
             sync_all_from_gcs(
@@ -133,6 +133,7 @@ class RAGSystem:
         self.agent_graph = create_agent_graph(
             llm, config, collection, research_cache=self.research_cache,
             tool_registry=self.tool_registry, retriever=self.retriever,
+            checkpointer=self.checkpointer,
         )
     
     async def prepare_run(self, notion_service=None):
@@ -150,19 +151,14 @@ class RAGSystem:
                 self.llm, config, self.collection,
                 research_cache=self.research_cache, tool_registry=self.tool_registry,
                 notion_service=notion_service if generation else None,
-                retriever=self.retriever,
+                retriever=self.retriever, checkpointer=self.checkpointer,
             )
-            self.thread_id = str(uuid.uuid4())
             self._graph_generation = generation
             self._mcp_prepared = True
         self.notion_service = notion_service
 
-    def get_config(self):
-        return {"configurable": {"thread_id": self.thread_id}, "recursion_limit": 50}
-    
-    def reset_thread(self):
-        try:
-            self.agent_graph.checkpointer.delete_thread(self.thread_id)
-        except Exception as e:
-            print(f"Warning: Could not delete thread {self.thread_id}: {e}")
-        self.thread_id = str(uuid.uuid4())
+    def invalidate_graph(self):
+        """Drop connection-bound tools; saved conversation threads live in the checkpointer."""
+        self._mcp_prepared = False
+        self.agent_graph = None
+        self._graph_generation = None

@@ -193,13 +193,13 @@ class TestWebToolkit:
         
         toolkit = WebToolkit(config)
         tools = toolkit.create_tools()
-            
-            assert len(tools) == 4
-            tool_names = [t.name for t in tools]
-            assert "web_search" in tool_names
-            assert "extract_webpage" in tool_names
-            assert "search_docs" in tool_names
-            assert "extract_code" in tool_names
+
+        assert len(tools) == 4
+        tool_names = [t.name for t in tools]
+        assert "web_search" in tool_names
+        assert "extract_webpage" in tool_names
+        assert "search_docs" in tool_names
+        assert "extract_code" in tool_names
     
     def test_error_handling(self):
         """Test error handling"""

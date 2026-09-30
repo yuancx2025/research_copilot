@@ -18,9 +18,13 @@ CompiledGraph = Any
 
 
 def create_agent_graph(llm, config, collection=None, research_cache=None, tool_registry=None,
-                       notion_service=None, retriever=None):
-    """Create orchestrator graph with multi-agent routing."""
-    checkpointer = InMemorySaver()
+                       notion_service=None, retriever=None, checkpointer=None):
+    """Create orchestrator graph with multi-agent routing.
+
+    Pass the application's shared checkpointer so every rebuild (for example
+    after a Notion generation change) keeps using the same durable threads.
+    """
+    checkpointer = checkpointer if checkpointer is not None else InMemorySaver()
     context = SourceContext(
         llm=llm,
         config=config,

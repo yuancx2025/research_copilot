@@ -11,6 +11,8 @@ USE_NOTION_MCP = NOTION_BACKEND == 'mcp'
 NOTION_MCP_URL = 'https://mcp.notion.com/mcp'
 OAUTH_BASE_URL = os.getenv('OAUTH_BASE_URL', 'http://127.0.0.1:7860').rstrip('/')
 OAUTH_TIMEOUT = 300
+# Where the OAuth callback returns the browser; empty means the app served by FastAPI.
+FRONTEND_URL = os.getenv('FRONTEND_URL', '').rstrip('/')
 
 def _command(prefix, default):
     command = os.getenv(prefix + '_MCP_COMMAND', default)
