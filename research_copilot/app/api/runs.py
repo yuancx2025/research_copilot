@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from research_copilot.app.contracts import stream_responses
 
 from research_copilot.app.deps import get_research
 from research_copilot.app.presenters import present_run
@@ -23,7 +25,7 @@ async def get_run(run_id: str, service=Depends(get_research)):
     return present_run(run, service, await service.repo.last_seq(run_id))
 
 
-@router.get('/{run_id}/events')
+@router.get('/{run_id}/events', response_class=StreamingResponse, responses=stream_responses('ResearchEventOut'))
 async def run_events(run_id: str, after: int = Query(0, ge=0), service=Depends(get_research)):
     """Replay committed events with ``seq > after``, then follow until the run settles."""
     await _run_or_404(service, run_id)

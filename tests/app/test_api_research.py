@@ -5,6 +5,7 @@ import pytest
 pytest.importorskip('multipart')
 
 from fastapi.testclient import TestClient
+from research_copilot.app.schemas import ResearchEventOut
 from tests.app.fakes import (FakeChat, fresh, make_app, make_service, parse_sse, result_event, run_to_end,
                              submit)
 
@@ -23,6 +24,8 @@ def test_research_streams_progress_then_presented_result(db):
         assert run['query'] == 'transformers'
         assert [e['type'] for e in events] == ['progress', 'progress', 'progress', 'result']
         assert [e['seq'] for e in events] == [1, 2, 3, 4]
+        for event in events:
+            ResearchEventOut.model_validate(event)
         assert events[1]['agents'] == ['arxiv', 'github']
         result = events[-1]['run']['result']
         assert result['answer'] == 'Transformers use attention.'

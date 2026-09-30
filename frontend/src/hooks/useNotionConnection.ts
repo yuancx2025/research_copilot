@@ -8,7 +8,7 @@ export function useNotionConnection(enabled: boolean) {
 
   const status = useQuery({
     queryKey: ['notion-status'],
-    queryFn: fetchNotionStatus,
+    queryFn: ({ signal }) => fetchNotionStatus(signal),
     enabled,
     refetchInterval: (query) => (query.state.data?.status === 'connecting' ? 2000 : 10000),
     refetchOnWindowFocus: true,

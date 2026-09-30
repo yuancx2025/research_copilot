@@ -5,6 +5,7 @@ pytest.importorskip('itsdangerous')
 
 from fastapi.testclient import TestClient
 from research_copilot.app.main import create_app
+from research_copilot.app.schemas import NotionStatusOut, NotionStartOut, NotionDisconnectOut
 from tests.runtime.auth.test_oauth import MemoryStore, OAuthServer, factory, ConnectionService
 
 
@@ -26,6 +27,7 @@ def _csrf(client):
     response = client.get('/oauth/notion/status')
     assert response.status_code == 200
     body = response.json()
+    NotionStatusOut.model_validate(body)
     assert 'access_token' not in str(body)
     return body['csrf']
 
@@ -49,6 +51,7 @@ def test_callback_mismatch_replay_and_disconnect(db):
         csrf = _csrf(client)
         started = client.post('/oauth/notion/start', headers={'X-CSRF-Token': csrf})
         assert started.status_code == 200
+        NotionStartOut.model_validate(started.json())
         url = started.json()['authorization_url']
         assert 'code_challenge=' in url
         state = service.pending.state
@@ -64,11 +67,13 @@ def test_callback_mismatch_replay_and_disconnect(db):
         replay = client.get('/oauth/notion/callback', params={'code': 'test-code', 'state': state})
         assert replay.status_code == 400
         status = client.get('/oauth/notion/status').json()
+        NotionStatusOut.model_validate(status)
         assert status['status'] == 'connected'
         assert 'granted-secret' not in str(status)
         csrf = status['csrf']
         gone = client.post('/oauth/notion/disconnect', headers={'X-CSRF-Token': csrf})
         assert gone.status_code == 200
+        NotionDisconnectOut.model_validate(gone.json())
         assert gone.json()['status'] == 'disconnected'
         assert 'revoke' in gone.json()['message'].lower()
         assert client.get('/oauth/notion/status').json()['status'] == 'disconnected'

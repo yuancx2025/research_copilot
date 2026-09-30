@@ -1,32 +1,35 @@
-export class ApiError extends Error {
-  readonly status: number
+import type { ZodType } from 'zod'
+import { zConfigOut } from './contracts/generated/zod.gen'
+import { ContractError, readJson } from './validation'
 
-  constructor(status: number, message: string) {
+export class ApiError extends Error {
+  constructor(readonly status: number, message: string) {
     super(message)
-    this.status = status
+    this.name = 'ApiError'
   }
 }
 
-// Kept in memory only; the backend rotates it whenever the server restarts.
 let csrfToken: string | null = null
-
 export function setCsrfToken(token: string | null | undefined) {
   if (token !== undefined) csrfToken = token
 }
 
-async function refreshCsrfToken() {
-  const response = await fetch('/api/config', { credentials: 'same-origin' })
-  if (response.ok) setCsrfToken((await response.json()).csrf)
+async function refreshCsrfToken(signal?: AbortSignal | null) {
+  const response = await fetch('/api/config', { credentials: 'same-origin', signal })
+  if (response.ok) setCsrfToken((await readJson(response, zConfigOut, '/api/config')).csrf)
 }
 
 async function errorMessage(response: Response): Promise<string> {
   try {
-    const body = await response.json()
-    if (typeof body.detail === 'string') return body.detail
-    if (Array.isArray(body.detail) && body.detail[0]?.msg) return body.detail[0].msg
-  } catch {
-    // Non-JSON error bodies fall through to the status text.
-  }
+    const body: unknown = await response.json()
+    if (body && typeof body === 'object' && 'detail' in body) {
+      if (typeof body.detail === 'string') return body.detail
+      if (Array.isArray(body.detail)) {
+        const first: unknown = body.detail[0]
+        if (first && typeof first === 'object' && 'msg' in first && typeof first.msg === 'string') return first.msg
+      }
+    }
+  } catch { /* Non-JSON errors use status text. */ }
   return response.statusText || `Request failed (${response.status})`
 }
 
@@ -37,22 +40,27 @@ export async function apiFetch(path: string, init: RequestInit = {}, retry = tru
   if (writes && csrfToken) headers.set('X-CSRF-Token', csrfToken)
   const response = await fetch(path, { ...init, method, headers, credentials: 'same-origin' })
   if (response.status === 403 && writes && retry) {
-    await refreshCsrfToken()
+    await refreshCsrfToken(init.signal)
     return apiFetch(path, init, false)
   }
   if (!response.ok) throw new ApiError(response.status, await errorMessage(response))
   return response
 }
 
-export async function getJson<T>(path: string): Promise<T> {
-  return (await apiFetch(path)).json()
+export async function getJson<T>(path: string, schema: ZodType<T>, signal?: AbortSignal): Promise<T> {
+  return readJson(await apiFetch(path, { signal }), schema, path)
 }
 
-export async function sendJson<T>(path: string, method: string, body?: unknown): Promise<T> {
-  const response = await apiFetch(path, {
-    method,
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
-  return response.status === 204 ? (undefined as T) : response.json()
+function jsonInit(method: string, body?: unknown): RequestInit {
+  return { method, headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body) }
+}
+
+export async function sendJson<T>(path: string, method: string, schema: ZodType<T>, body?: unknown): Promise<T> {
+  return readJson(await apiFetch(path, jsonInit(method, body)), schema, path)
+}
+
+export async function sendEmpty(path: string, method: string, body?: unknown): Promise<void> {
+  const response = await apiFetch(path, jsonInit(method, body))
+  if (response.status !== 204) throw new ContractError(path)
 }

@@ -48,9 +48,9 @@ function detail(phase: 'empty' | 'running' | 'done' | 'draft'): ConversationDeta
       phase === 'empty'
         ? []
         : [
-            { id: 'm1', role: 'user', content: 'transformers', clarification: false, run_id: 'r1', request_id: 'request-1', created_at: '' },
+            { id: 'm1', role: 'user', content: 'transformers', clarification: false, run_id: 'r1', request_id: 'request-1', created_at: '2026-09-28T00:00:00Z' },
             ...(phase === 'done' || phase === 'draft'
-              ? [{ id: 'm2', role: 'assistant' as const, content: completed.result!.answer, clarification: false, run_id: 'r1', request_id: null, created_at: '' }]
+              ? [{ id: 'm2', role: 'assistant' as const, content: completed.result!.answer, clarification: false, run_id: 'r1', request_id: null, created_at: '2026-09-28T00:00:00Z' }]
               : []),
           ],
     runs: phase === 'empty' ? [] : [phase === 'running' ? run('running', null) : completed],
@@ -82,7 +82,7 @@ describe('ResearchPage', () => {
   it('submits a question, renders the saved answer, citations and a preview that exports', async () => {
     let phase: 'empty' | 'running' | 'done' | 'draft' = 'empty'
     const calls = mockFetch({
-      'GET /api/conversations': () => json([{ id: 'c1', title: 'transformers', created_at: '', updated_at: '' }]),
+      'GET /api/conversations': () => json([{ id: 'c1', title: 'transformers', created_at: '2026-09-28T00:00:00Z', updated_at: '2026-09-28T00:00:00Z' }]),
       'GET /api/conversations/c1': () => json(detail(phase)),
       'POST /api/conversations/c1/runs': () => {
         phase = 'running'

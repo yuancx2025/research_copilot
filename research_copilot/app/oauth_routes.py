@@ -3,16 +3,17 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
 from research_copilot.storage.credential_keys import CredentialError
 from .security import session, verify_csrf
+from .schemas import NotionStatusOut, NotionStartOut, NotionDisconnectOut
 
 
 def oauth_router(service, frontend_url=''):
     router = APIRouter(prefix='/oauth/notion')
 
-    @router.get('/status')
+    @router.get('/status', response_model=NotionStatusOut)
     async def status(request: Request):
         return JSONResponse({**service.status(), 'csrf': session(request)['csrf']}, headers={'Cache-Control':'no-store'})
 
-    @router.post('/start')
+    @router.post('/start', response_model=NotionStartOut)
     async def start(request: Request):
         data = verify_csrf(request)
         try:
@@ -34,7 +35,7 @@ def oauth_router(service, frontend_url=''):
             raise HTTPException(400, 'Authorization was denied, expired, or could not be completed.') from None
         return RedirectResponse(f'{frontend_url}/oauth/done', status_code=303)
 
-    @router.post('/disconnect')
+    @router.post('/disconnect', response_model=NotionDisconnectOut)
     async def disconnect(request: Request):
         verify_csrf(request)
         try:

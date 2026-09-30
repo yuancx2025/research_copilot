@@ -7,6 +7,8 @@ from typing import List
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
+from research_copilot.app.contracts import stream_responses
 
 from research_copilot.app.deps import get_research
 from research_copilot.app.schemas import DocumentsOut
@@ -32,7 +34,8 @@ async def clear_documents(service=Depends(get_research)):
     return DocumentsOut(documents=[])
 
 
-@router.post('/documents', dependencies=[Depends(require_csrf)])
+@router.post('/documents', dependencies=[Depends(require_csrf)], response_class=StreamingResponse,
+             responses=stream_responses('UploadEventOut'))
 async def upload_documents(files: List[UploadFile] = File(...), service=Depends(get_research)):
     staging = Path(tempfile.mkdtemp(prefix='research-copilot-upload-'))
     paths, rejected = [], 0

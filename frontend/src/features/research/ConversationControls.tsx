@@ -9,7 +9,7 @@ export function ConversationControls() {
   const location = useLocation()
   const queryClient = useQueryClient()
   const section = location.pathname.startsWith('/chat') ? 'chat' : 'research'
-  const conversations = useQuery({ queryKey: ['conversations'], queryFn: listConversations })
+  const conversations = useQuery({ queryKey: ['conversations'], queryFn: ({ signal }) => listConversations(signal) })
   const [error, setError] = useState<string | null>(null)
 
   const open = (id: string) => {

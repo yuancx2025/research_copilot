@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "contracts:generate": "node scripts/contracts.mjs",
+    "contracts:check": "node scripts/contracts.mjs --check"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.0",
@@ -18,9 +20,11 @@
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.18.4",
     "remark-gfm": "^4.0.1",
+    "zod": "4.6.5",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@hey-api/openapi-ts": "0.99.0",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",
@@ -29,8 +33,11 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "jsdom": "^30.1.1",
-    "typescript": "^7.0.2",
+    "typescript": "6.0.3",
     "vite": "^8.3.1",
     "vitest": "^5.0.2"
+  },
+  "overrides": {
+    "js-yaml": "4.3.2"
   }
 }

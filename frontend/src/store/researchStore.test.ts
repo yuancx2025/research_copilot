@@ -13,7 +13,7 @@ const run: Run = {
   retry_of_run_id: null,
   error: null,
   last_seq: 0,
-  created_at: '',
+  created_at: '2026-09-28T00:00:00Z',
   finished_at: null,
   result: null,
 }

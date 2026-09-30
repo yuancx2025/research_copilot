@@ -3,6 +3,7 @@ import pytest
 pytest.importorskip('multipart')
 
 from fastapi.testclient import TestClient
+from research_copilot.app.schemas import UploadEventOut
 from tests.app.fakes import make_app, make_service, parse_sse
 
 
@@ -18,6 +19,8 @@ def test_list_upload_and_clear_documents(db):
         ])
         assert response.status_code == 200
         events = parse_sse(response.text)
+        for event in events:
+            UploadEventOut.model_validate(event)
         assert [e['type'] for e in events] == ['progress'] * 3 + ['result']
         assert events[0] == {'type': 'progress', 'fraction': pytest.approx(1 / 3), 'message': 'Processing paper.pdf'}
         assert events[-1] == {'type': 'result', 'added': 2, 'skipped': 2,

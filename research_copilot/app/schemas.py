@@ -5,26 +5,31 @@ with a per-run ``seq``; ``result`` events carry the committed ``RunOut``.
 Upload streams emit ``progress`` and a ``result`` matching ``UploadResultOut``.
 """
 from datetime import datetime
-from typing import Dict, List, Literal, Optional
-from pydantic import BaseModel, Field
+from typing import Annotated, Dict, List, Literal, Optional, Union
+from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 RequestId = Field(min_length=8, max_length=64, pattern=r'^[A-Za-z0-9_-]+$')
 RunStatus = Literal['queued', 'running', 'awaiting_clarification', 'completed', 'failed', 'interrupted',
                     'superseded']
 
 
-class ConfigOut(BaseModel):
+class ResponseModel(BaseModel):
+    # FastAPI emits these defaults, so the output contract must describe them.
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+
+class ConfigOut(ResponseModel):
     notion_backend: Literal['disabled', 'rest', 'mcp']
     default_destination: str = ''
     sources: List[str] = []
     csrf: Optional[str] = None
 
 
-class DocumentsOut(BaseModel):
+class DocumentsOut(ResponseModel):
     documents: List[str]
 
 
-class UploadResultOut(BaseModel):
+class UploadResultOut(ResponseModel):
     added: int
     skipped: int
     documents: List[str]
@@ -49,7 +54,7 @@ class PreviewRequest(BaseModel):
     run_id: str = Field(min_length=1, max_length=36)
 
 
-class CitationOut(BaseModel):
+class CitationOut(ResponseModel):
     source_type: str
     title: str
     url: str
@@ -60,7 +65,7 @@ class CitationOut(BaseModel):
     repo: Optional[str] = None
 
 
-class ResearchResultOut(BaseModel):
+class ResearchResultOut(ResponseModel):
     run_id: str
     query: str
     answer: str
@@ -71,7 +76,7 @@ class ResearchResultOut(BaseModel):
     generation: Optional[str] = None
 
 
-class RunOut(BaseModel):
+class RunOut(ResponseModel):
     id: str
     conversation_id: str
     request_id: str
@@ -85,7 +90,7 @@ class RunOut(BaseModel):
     result: Optional[ResearchResultOut] = None
 
 
-class MessageOut(BaseModel):
+class MessageOut(ResponseModel):
     id: str
     role: Literal['user', 'assistant', 'error']
     content: str
@@ -95,14 +100,14 @@ class MessageOut(BaseModel):
     created_at: datetime
 
 
-class ConversationOut(BaseModel):
+class ConversationOut(ResponseModel):
     id: str
     title: str
     created_at: datetime
     updated_at: datetime
 
 
-class DraftOut(BaseModel):
+class DraftOut(ResponseModel):
     draft_id: str
     run_id: str
     title: str
@@ -116,7 +121,7 @@ class ConversationDetailOut(ConversationOut):
     drafts: List[DraftOut]
 
 
-class PageOut(BaseModel):
+class PageOut(ResponseModel):
     title: str
     ref: str
 
@@ -126,9 +131,78 @@ class ExportRequest(BaseModel):
     destination: str = Field(min_length=1, max_length=500)
 
 
-class ExportOut(BaseModel):
+class ExportOut(ResponseModel):
     status: Literal['success', 'failure', 'unknown', 'pending']
     page_id: Optional[str] = None
     url: Optional[str] = None
     message: str = ''
     retryable: bool
+
+
+class NotionStatusOut(ResponseModel):
+    status: Literal['connected', 'connecting', 'disconnected', 'reconnect_required', 'failed']
+    workspace: str
+    generation: Optional[str]
+    error: Optional[str]
+    csrf: str
+
+
+class NotionStartOut(ResponseModel):
+    authorization_url: str
+
+
+class NotionDisconnectOut(ResponseModel):
+    status: Literal['disconnected']
+    message: str
+
+
+class ResearchProgressEvent(BaseModel):
+    type: Literal['progress']
+    seq: int = Field(gt=0)
+    run_id: str
+    node: str
+    agents: Optional[List[str]] = None
+    source: Optional[str] = None
+    clear: Optional[bool] = None
+
+
+class ResearchResultEvent(BaseModel):
+    type: Literal['result']
+    seq: int = Field(gt=0)
+    run_id: str
+    run: RunOut
+
+
+class ResearchErrorEvent(BaseModel):
+    type: Literal['error']
+    seq: int = Field(gt=0)
+    run_id: str
+    message: str
+    status: RunStatus
+
+
+class ResearchEventOut(RootModel[Annotated[
+    Union[ResearchProgressEvent, ResearchResultEvent, ResearchErrorEvent], Field(discriminator='type')
+]]):
+    pass
+
+
+class UploadProgressEvent(BaseModel):
+    type: Literal['progress']
+    fraction: float
+    message: str
+
+
+class UploadResultEvent(UploadResultOut):
+    type: Literal['result']
+
+
+class UploadErrorEvent(BaseModel):
+    type: Literal['error']
+    message: str
+
+
+class UploadEventOut(RootModel[Annotated[
+    Union[UploadProgressEvent, UploadResultEvent, UploadErrorEvent], Field(discriminator='type')
+]]):
+    pass

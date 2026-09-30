@@ -85,6 +85,8 @@ def create_app(config=None, connection=None, research_factory=None, frontend_dir
     if local:
         app.include_router(oauth_router(connection, frontend_url))
     app.include_router(api_router())
+    from .contracts import install_contracts
+    install_contracts(app)
 
     @app.get('/ui', include_in_schema=False)
     async def legacy_ui():

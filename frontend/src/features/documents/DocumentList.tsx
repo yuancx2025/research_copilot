@@ -4,7 +4,7 @@ import { clearDocuments, listDocuments } from '../../api/endpoints'
 
 export function DocumentList() {
   const queryClient = useQueryClient()
-  const documents = useQuery({ queryKey: ['documents'], queryFn: listDocuments })
+  const documents = useQuery({ queryKey: ['documents'], queryFn: ({ signal }) => listDocuments(signal) })
   const [clearing, setClearing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
