@@ -2,7 +2,7 @@
 
 A local, single-user research assistant that searches local documents, academic papers, the web, GitHub, YouTube, and a connected Notion workspace. After research, you can preview a study plan and export that exact draft to a Notion page you choose.
 
-The UI is a React app in [`frontend/`](frontend/) (see [frontend/README.md](frontend/README.md)) served by the same FastAPI process that exposes the JSON/SSE API under `/api`. Notion OAuth binds to `127.0.0.1` only.
+The UI is a React app in `[frontend/](frontend/)` (see [frontend/README.md](frontend/README.md)) served by the same FastAPI process that exposes the JSON/SSE API under `/api`. Notion OAuth binds to `127.0.0.1` only.
 
 ## Architecture
 
@@ -43,15 +43,18 @@ flowchart TD
     style Export fill:#9775fa,stroke:#6741d9,color:#ffffff
 ```
 
+
+
 **How a request runs**
+
 - The orchestrator classifies intent against **currently available sources**. Notion is offered only while a workspace connection is active.
 - Specialized agents run in parallel. Notion research tools are read-only search and fetch.
 - Citations from Notion require a fetched page (title, URL, and content). Search hits alone are not treated as evidence.
 - Study-plan publishing is not part of the research graph. Preview generates a draft; Export publishes the displayed Markdown without generating again.
-
 - Research runs stream progress to the browser over Server-Sent Events (sources selected, each agent finishing, then the answer).
 
 **Backend layout**
+
 ```
 research_copilot/
 ├── app/             # FastAPI factory, /api routers, SSE, security, OAuth routes, static serving
@@ -68,6 +71,8 @@ research_copilot/
 └── config/          # Shared local/GCP settings, including MCP
 ```
 
+
+
 ## Features
 
 - **Local RAG**: upload PDF and Markdown files and query them
@@ -77,7 +82,11 @@ research_copilot/
 - **Saved conversations**: messages, results, citations, and study-plan previews in PostgreSQL, with explicit retry after an interrupted run
 - **Local OAuth**: Connect/Disconnect in the Research tab; tokens are encrypted in PostgreSQL with a key file outside the repository
 
+
+
 ## Quick start
+
+
 
 ### Prerequisites
 
@@ -85,6 +94,8 @@ research_copilot/
 - Node.js 20+ to build the frontend (see [frontend/README.md](frontend/README.md) for UI development)
 - A PostgreSQL database. Local development uses a Neon **direct** endpoint (`sslmode=require`, hostname without `-pooler`)
 - API keys for the LLM and any non-Notion sources you enable
+
+
 
 ### Installation
 
@@ -172,6 +183,8 @@ For Vite hot reload, proxy behavior, and frontend file layout, see [frontend/REA
 5. After citations exist, click **Preview Study Plan**, search or paste a destination page, then **Export displayed plan**. The preview is saved before it is shown, and export publishes that stored Markdown.
 6. **Disconnect** stops credential use immediately and deletes the encrypted payload. Saved answers, citations, and previews stay readable; drafts from the old connection cannot be exported. Disconnect is reported as failed if the database update fails. Revoke the grant in Notion settings if you also want the provider-side authorization removed.
 
+
+
 ### Credential key backup
 
 The key file is the only copy of the encryption key. It is not stored in Neon, source control, frontend bundles, or database backups. Copy it to a protected place (an encrypted password manager or another machine you control) before you rely on the Notion connection.
@@ -179,29 +192,6 @@ The key file is the only copy of the encryption key. It is not stored in Neon, s
 If the file is missing, unreadable, or is a different key, Notion stays disconnected with an error that names the file. Research history in PostgreSQL remains available. Restore the original file, or run **Connect Notion** again to create a new encrypted credential. Do not run `keys init` over a file you still need: it will refuse, and deleting the file first makes every saved credential undecryptable.
 
 OAuth failures never fall back to `NOTION_API_KEY`. REST export remains an explicit `NOTION_BACKEND=rest` compatibility mode that still uses the block renderer.
-
-## Tests
-
-```bash
-pip install -e ".[test]"
-pytest tests/
-cd frontend && npm test
-```
-
-Stdio MCP tests use `tests/runtime/mcp/fixture_server.py`. OAuth and HTTP callback tests use mocked responses.
-
-Opt-in live Notion smoke test (reads a page you choose; exports only with a second flag):
-
-```bash
-# After connecting in the UI:
-NOTION_LIVE_TEST=1 NOTION_LIVE_PAGE_ID=<page-id-or-url> pytest tests/sources/notion/test_live_smoke.py -m live
-
-# Create a page only after you explicitly opt in:
-NOTION_LIVE_TEST=1 NOTION_LIVE_EXPORT=1 NOTION_LIVE_PAGE_ID=<page-id> \
-  NOTION_LIVE_PARENT_PAGE_ID=<destination-page-id> pytest tests/sources/notion/test_live_smoke.py -m live
-```
-
-Record live verification separately from automated results. The live test does not disconnect your Keychain credentials.
 
 ## Known limitations
 
@@ -215,3 +205,4 @@ Record live verification separately from automated results. The live test does n
 - The visible transcript is kept in the browser tab's session storage; the server keeps only conversation context in memory, and a server restart clears it
 - One research request runs at a time; Chat and Research share the same conversation
 - Dynamic subagent spawning, general workspace editing, shared database storage, distributed refresh, cloud deployment, and a newer MCP stack are follow-up work
+
