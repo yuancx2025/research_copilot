@@ -1,0 +1,42 @@
+.shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.25rem;
+}
+
+.shell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.shell-header h1 {
+  font-size: 1.2rem;
+  margin: 0;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tabs a {
+  color: var(--text-secondary);
+  padding: 0.75rem 1.1rem;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s ease;
+}
+
+.tabs a:hover {
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.tabs a:global(.active) {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent-blue);
+}
