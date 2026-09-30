@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Citation } from '../api/types'
+import type { Citation } from '../../../api/types'
 import { citationDetail, groupCitations } from './citations'
 import { describeProgress } from './progress'
 
@@ -43,8 +43,8 @@ describe('describeProgress', () => {
   it('tracks selected agents until each finishes', () => {
     const view = describeProgress([
       { type: 'progress', seq: 1, run_id: 'r1', node: 'prepare' },
-      { type: 'progress', seq: 2, run_id: 'r1', node: 'classify_intent', agents: ['arxiv', 'web'] },
-      { type: 'progress', seq: 3, run_id: 'r1', node: 'arxiv_agent', source: 'arxiv' },
+      { type: 'progress', seq: 1, run_id: 'r1', node: 'classify_intent', agents: ['arxiv', 'web'] },
+      { type: 'progress', seq: 1, run_id: 'r1', node: 'arxiv_agent', source: 'arxiv' },
     ])
     expect(view.done).toEqual(['Preparing sources', 'Selected ArXiv, Web', 'ArXiv search finished'])
     expect(view.current).toBe('Searching Web')
@@ -52,8 +52,8 @@ describe('describeProgress', () => {
 
   it('reports writing once every agent is done', () => {
     const view = describeProgress([
-      { type: 'progress', seq: 4, run_id: 'r1', node: 'classify_intent', agents: ['web'] },
-      { type: 'progress', seq: 5, run_id: 'r1', node: 'web_agent', source: 'web' },
+      { type: 'progress', seq: 1, run_id: 'r1', node: 'classify_intent', agents: ['web'] },
+      { type: 'progress', seq: 1, run_id: 'r1', node: 'web_agent', source: 'web' },
     ])
     expect(view.current).toBe('Writing the answer')
     expect(describeProgress([]).current).toBe('Starting')

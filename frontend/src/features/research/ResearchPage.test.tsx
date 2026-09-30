@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { AppConfig, ConversationDetail, Draft, Run } from '../../api/types'
-import { useUiStore } from '../../store/researchStore'
+import { useUiStore } from './state/uiStore'
 import { json, mockFetch, sseResponse } from '../../test/http'
 import { ResearchPage } from './ResearchPage'
 
@@ -73,7 +73,7 @@ function renderPage() {
 
 beforeEach(() => {
   sessionStorage.clear()
-  useUiStore.setState({ drafts: {}, streamingRunId: null, progress: [], streamNotice: null })
+  useUiStore.setState({ drafts: {}, runs: {} })
 })
 
 afterEach(() => vi.unstubAllGlobals())
@@ -88,6 +88,7 @@ describe('ResearchPage', () => {
         phase = 'running'
         return json(run('running', null))
       },
+      'GET /api/runs/r1': () => json(phase === 'running' ? run('running', null) : completed),
       'GET /api/runs/r1/events': () => {
         phase = 'done'
         return sseResponse([
@@ -108,7 +109,7 @@ describe('ResearchPage', () => {
     await user.type(await screen.findByRole('textbox', { name: 'Message' }), 'transformers{Enter}')
 
     expect(await screen.findByText('attention')).toBeInTheDocument()
-    expect(within(document.querySelector('.thread') as HTMLElement).getByText('transformers')).toBeInTheDocument()
+    expect(within(screen.getByRole('log')).getByText('transformers')).toBeInTheDocument()
     const link = screen.getByRole('link', { name: 'Attention Is All You Need' })
     expect(link).toHaveAttribute('target', '_blank')
     expect(screen.getByText('Vaswani · 2017')).toBeInTheDocument()

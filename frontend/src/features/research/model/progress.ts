@@ -1,4 +1,4 @@
-import type { ProgressEvent } from '../api/types'
+import type { ProgressEvent } from '../../../api/types'
 import { sourceLabel } from './citations'
 
 export interface ProgressView {

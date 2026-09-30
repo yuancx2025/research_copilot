@@ -1,5 +1,6 @@
-import type { NotionStatus } from '../../api/types'
-import { useNotionConnection } from '../../hooks/useNotionConnection'
+import styles from './notion.module.css'
+import type { NotionStatus } from '../../../api/types'
+import { useNotionConnection } from './useNotionConnection'
 
 function describe(status: NotionStatus | undefined, loading: boolean): string {
   if (loading || !status) return 'Checking Notion connection…'
@@ -22,9 +23,9 @@ export function NotionConnectionBar() {
   const state = status?.status
   const linked = state === 'connected' || state === 'reconnect_required'
   return (
-    <div className={`connection-bar ${state ?? 'loading'}`}>
-      <span className="connection-dot" aria-hidden />
-      <span className="connection-text">{actionError ?? describe(status, loading)}</span>
+    <div className={`${styles['connection-bar']} ${state ? styles[state] ?? '' : ''}`}>
+      <span className={styles["connection-dot"]} aria-hidden />
+      <span className={styles["connection-text"]}>{actionError ?? describe(status, loading)}</span>
       {state !== 'connected' && (
         <button onClick={connect} disabled={busy || loading || state === 'connecting'}>
           {state === 'reconnect_required' ? 'Reconnect Notion' : 'Connect Notion'}

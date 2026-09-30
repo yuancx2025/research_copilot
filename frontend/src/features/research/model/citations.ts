@@ -1,4 +1,4 @@
-import type { Citation } from '../api/types'
+import type { Citation } from '../../../api/types'
 
 export const SOURCE_LABELS: Record<string, string> = {
   arxiv: 'ArXiv Papers',

@@ -1,11 +1,12 @@
-import type { Citation, ResearchResult } from '../../api/types'
-import { citationDetail, groupCitations, sourceLabel } from '../../lib/citations'
+import styles from '../research.module.css'
+import type { Citation, ResearchResult } from '../../../api/types'
+import { citationDetail, groupCitations, sourceLabel } from '../model/citations'
 
 function SourcesSummary({ sources }: { sources: Record<string, number> }) {
   const entries = Object.entries(sources)
   if (!entries.length) return <p className="muted">No sources used yet.</p>
   return (
-    <ul className="sources">
+    <ul className={styles["sources"]}>
       {entries.map(([source, count]) => (
         <li key={source}>
           <strong>{sourceLabel(source, true)}</strong>: {count} result{count === 1 ? '' : 's'}
@@ -26,7 +27,7 @@ function CitationItem({ citation }: { citation: Citation }) {
       ) : (
         <span>{citation.title}</span>
       )}
-      {detail && <span className="citation-detail">{detail}</span>}
+      {detail && <span className={styles["citation-detail"]}>{detail}</span>}
     </li>
   )
 }
@@ -38,10 +39,10 @@ export function ArtifactsPanel({ result }: { result: ResearchResult | null }) {
       <h3>Research sources</h3>
       <SourcesSummary sources={result?.sources ?? {}} />
       <h3>Citations</h3>
-      <div className="citations">
+      <div className={styles["citations"]}>
         {groups.length ? (
           groups.map(([source, citations]) => (
-            <div key={source} className="citation-group">
+            <div key={source} className={styles["citation-group"]}>
               <h4>{sourceLabel(source)}</h4>
               <ul>
                 {citations.map((citation, index) => (

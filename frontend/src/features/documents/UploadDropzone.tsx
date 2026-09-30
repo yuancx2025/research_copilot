@@ -1,6 +1,6 @@
+import styles from './documents.module.css'
 import { useRef, useState, type DragEvent } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { uploadDocuments } from '../../api/endpoints'
+import { useUploadDocuments } from './useUploadDocuments'
 
 const ACCEPTED = /\.(pdf|md)$/i
 
@@ -10,15 +10,17 @@ interface Status {
 }
 
 export function UploadDropzone({ compact = false }: { compact?: boolean }) {
-  const queryClient = useQueryClient()
+  const action = useUploadDocuments()
+  const uploading = action.isPending
+  const progress = action.progress
+  const lock = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const [files, setFiles] = useState<File[]>([])
   const [dragging, setDragging] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [progress, setProgress] = useState<{ fraction: number; message: string } | null>(null)
   const [status, setStatus] = useState<Status | null>(null)
 
   const choose = (list: FileList | null) => {
+    if (uploading) return
     const all = Array.from(list ?? [])
     const accepted = all.filter((file) => ACCEPTED.test(file.name))
     setFiles(accepted)
@@ -32,33 +34,26 @@ export function UploadDropzone({ compact = false }: { compact?: boolean }) {
   }
 
   const upload = async () => {
-    setUploading(true)
+    if (lock.current) return
+    lock.current = true
     setStatus(null)
-    setProgress({ fraction: 0, message: 'Uploading' })
     try {
-      await uploadDocuments(files, (event) => {
-        if (event.type === 'progress') setProgress(event)
-        else if (event.type === 'error') setStatus({ kind: 'error', text: event.message })
-        else {
-          const skipped = event.skipped ? ` · Skipped ${event.skipped} duplicate or unsupported file(s)` : ''
-          setStatus({ kind: 'ok', text: `Indexed ${event.added} document(s)${skipped}` })
-          queryClient.setQueryData(['documents'], { documents: event.documents })
-          setFiles([])
-        }
-      })
+      const event = await action.mutateAsync(files)
+      const skipped = event.skipped ? ` · Skipped ${event.skipped} duplicate or unsupported file(s)` : ''
+      setStatus({ kind: 'ok', text: `Indexed ${event.added} document(s)${skipped}` })
+      setFiles([])
     } catch (error) {
       setStatus({ kind: 'error', text: error instanceof Error ? error.message : 'Upload failed.' })
     } finally {
-      setUploading(false)
-      setProgress(null)
+      lock.current = false
       if (inputRef.current) inputRef.current.value = ''
     }
   }
 
   return (
-    <div className={compact ? 'uploader compact' : 'uploader'}>
+    <div className={`${styles.uploader} ${compact ? styles.compact : ''}`}>
       <label
-        className={dragging ? 'dropzone dragging' : 'dropzone'}
+        className={`${styles.dropzone} ${dragging ? styles.dragging : ''}`}
         onDragOver={(event) => {
           event.preventDefault()
           setDragging(true)
@@ -84,8 +79,8 @@ export function UploadDropzone({ compact = false }: { compact?: boolean }) {
         {uploading ? 'Indexing…' : compact ? 'Index documents' : 'Add documents'}
       </button>
       {progress && (
-        <div className="progress" role="progressbar" aria-valuenow={Math.round(progress.fraction * 100)}>
-          <div className="progress-bar" style={{ width: `${Math.max(progress.fraction, 0.05) * 100}%` }} />
+        <div className={styles["progress"]} role="progressbar" aria-valuenow={Math.round(progress.fraction * 100)}>
+          <div className={styles["progress-bar"]} style={{ width: `${Math.max(progress.fraction, 0.05) * 100}%` }} />
           <span>{progress.message}</span>
         </div>
       )}
