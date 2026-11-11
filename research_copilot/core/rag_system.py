@@ -1,4 +1,5 @@
 import atexit
+import os
 from langchain_core.language_models import BaseChatModel
 from research_copilot.config import settings as config
 from research_copilot.storage.qdrant_client import VectorDbManager
@@ -16,8 +17,34 @@ from research_copilot.storage.cloud_storage import (
     sync_all_to_gcs
 )
 
-def create_llm() -> BaseChatModel:
-    """Create LLM instance based on configured provider."""
+_SHARED_RATE_LIMITER = None
+
+
+def shared_rate_limiter():
+    """One process-wide limiter from LLM_REQUESTS_PER_MINUTE, shared by every model we create.
+
+    Free-tier quotas are per project, so the research model and the reranker
+    must draw from the same budget.
+    """
+    global _SHARED_RATE_LIMITER
+    rpm = float(os.getenv("LLM_REQUESTS_PER_MINUTE", "0") or 0)
+    if rpm <= 0:
+        return None
+    if _SHARED_RATE_LIMITER is None:
+        from langchain_core.rate_limiters import InMemoryRateLimiter
+        from research_copilot.evals.tracing import MeasuredRateLimiter
+        # Measured so run traces report provider latency without our own throttling wait.
+        _SHARED_RATE_LIMITER = MeasuredRateLimiter(InMemoryRateLimiter(
+            requests_per_second=rpm / 60, check_every_n_seconds=0.1, max_bucket_size=1))
+    return _SHARED_RATE_LIMITER
+
+
+def create_llm(rate_limiter=None) -> BaseChatModel:
+    """Create LLM instance based on configured provider.
+
+    ``rate_limiter`` overrides the shared LLM_REQUESTS_PER_MINUTE limiter.
+    """
+    rate_limiter = rate_limiter or shared_rate_limiter()
     provider = getattr(config, 'LLM_PROVIDER', 'ollama').lower()
     
     if provider == 'google':
@@ -37,14 +64,15 @@ def create_llm() -> BaseChatModel:
         return ChatGoogleGenerativeAI(
             model=model_name,
             temperature=temperature,
-            google_api_key=api_key
+            google_api_key=api_key,
+            rate_limiter=rate_limiter,
         )
     else:
         from langchain_ollama import ChatOllama
         model_name = getattr(config, 'LLM_MODEL', 'qwen3:4b-instruct-2507-q4_K_M')
         temperature = getattr(config, 'LLM_TEMPERATURE', 0)
         print(f"✓ Using Ollama: {model_name}")
-        return ChatOllama(model=model_name, temperature=temperature)
+        return ChatOllama(model=model_name, temperature=temperature, rate_limiter=rate_limiter)
 
 class RAGSystem:
     

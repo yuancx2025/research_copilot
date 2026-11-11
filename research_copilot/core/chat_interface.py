@@ -1,9 +1,28 @@
+import json
 import logging
+import os
+from datetime import datetime, timezone
+from pathlib import Path
 from langchain_core.messages import HumanMessage
 from typing import Any, AsyncIterator, Dict, Optional
 from research_copilot.orchestrator.intent import explicit_notion_request
 
 logger = logging.getLogger(__name__)
+
+
+def _trace_dir() -> Optional[Path]:
+    """Directory for per-run traces, enabled by setting RUN_TRACE_DIR."""
+    value = os.getenv("RUN_TRACE_DIR", "").strip()
+    return Path(value).expanduser() if value else None
+
+
+def _write_trace(directory: Path, record: Dict[str, Any]) -> None:
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        with open(directory / "runs.jsonl", "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, default=str) + "\n")
+    except OSError:
+        logger.warning("Could not write run trace to %s", directory, exc_info=True)
 
 
 def _extract_text_from_content(content) -> str:
@@ -140,13 +159,25 @@ class ChatInterface:
             else:
                 inputs = {"messages": [HumanMessage(content=message.strip())], "clarification_context": "", **reset}
 
+            trace_dir = _trace_dir()
+            tracer = None
+            run_config = config
+            if trace_dir and isinstance(config, dict):
+                from research_copilot.evals.tracing import RunTracer
+                tracer = RunTracer()
+                run_config = {**config, "callbacks": [*(config.get("callbacks") or []), tracer]}
+
             interrupted = False
-            async for chunk in graph.astream(inputs, config, stream_mode="updates"):
+            selected_sources: list = []
+            async for chunk in graph.astream(inputs, run_config, stream_mode="updates"):
                 for node, update in chunk.items():
                     if node == "__interrupt__":
                         interrupted = True
                         continue
-                    yield _progress_event(node, update)
+                    event = _progress_event(node, update)
+                    if "agents" in event:
+                        selected_sources = event["agents"]
+                    yield event
 
             if notion and (generation != notion.connection.generation or
                            (generation and not notion.connection.connected)):
@@ -177,7 +208,19 @@ class ChatInterface:
                 "sources": list(agent_results.keys()) if agent_results else [],
                 "citation_count": len(citations)
             }
-            
+
+            if tracer is not None:
+                _write_trace(trace_dir, {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "thread_id": thread_id,
+                    "resume": resume,
+                    "needs_clarification": interrupted or result.get("questionIsClear") is False,
+                    "sources_selected": selected_sources,
+                    "routing_decision": result.get("routing_decision", {}),
+                    "citation_count": len(citations),
+                    "trace": tracer.summary(),
+                })
+
             yield {"type": "result", "answer": answer_text, "research_data": research_data,
                    "needs_clarification": interrupted or result.get("questionIsClear") is False,
                    "checkpoint_id": checkpoint_id}

@@ -145,7 +145,8 @@ def classify_research_intent(state: State, llm) -> Dict[str, Any]:
             "research_intent": default,
             "routing_decision": {
                 "reasoning": "No query found, defaulting to available local/web agents",
-                "confidence": 0.5
+                "confidence": 0.5,
+                "fallback": "no_query",
             },
             "active_agents": default
         }
@@ -153,15 +154,18 @@ def classify_research_intent(state: State, llm) -> Dict[str, Any]:
     conversation_summary = state.get("conversation_summary", "")
     prompt = get_intent_classification_prompt(query, conversation_summary, sources)
 
-    def _result(agents, reasoning, confidence=0.7, suggested=None):
+    def _result(agents, reasoning, confidence=0.7, suggested=None, fallback=None):
         selected = ensure_notion(query, [a for a in agents if a in sources], sources)
         if not selected:
             selected = keyword_agents(query, sources)
+            fallback = fallback or "empty_selection"
         return {
             "research_intent": selected,
             "routing_decision": {
                 "reasoning": reasoning,
                 "confidence": confidence,
+                # Why keyword routing replaced the LLM's choice; None when the LLM decided.
+                "fallback": fallback,
                 **({"suggested_queries": suggested} if suggested else {}),
             },
             "active_agents": selected,
@@ -177,16 +181,20 @@ def classify_research_intent(state: State, llm) -> Dict[str, Any]:
             return _result(
                 selected,
                 f"Structured output returned None. Analyzed query keywords to select agents: {', '.join(selected)}",
+                fallback="llm_returned_none",
             )
 
         filtered = [a for a in (intent.agents if hasattr(intent, 'agents') and intent.agents else []) if a in sources]
+        fallback = None
         if not filtered:
             filtered = keyword_agents(query, sources)
+            fallback = "no_valid_agents"
         return _result(
             filtered,
             (intent.reasoning if hasattr(intent, 'reasoning') else "Selected agents based on query analysis"),
             (intent.confidence if hasattr(intent, 'confidence') else 0.7),
             (intent.suggested_queries if hasattr(intent, 'suggested_queries') and intent.suggested_queries else None),
+            fallback=fallback,
         )
     except Exception as e:
         logger.warning(f"Error in intent classification: {e}")
@@ -195,6 +203,7 @@ def classify_research_intent(state: State, llm) -> Dict[str, Any]:
             selected,
             f"Intent classification failed: {str(e)}. Analyzed query keywords to select agents: {', '.join(selected)}",
             0.6,
+            fallback="llm_error",
         )
 
 
