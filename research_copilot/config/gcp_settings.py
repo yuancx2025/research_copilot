@@ -115,6 +115,8 @@ ENABLE_RERANKING = os.getenv("ENABLE_RERANKING", "true").lower() == "true"
 RERANK_TOP_K = int(os.getenv("RERANK_TOP_K", "5"))
 RERANK_INITIAL_K = int(os.getenv("RERANK_INITIAL_K", "20"))
 RERANK_BATCH_SIZE = int(os.getenv("RERANK_BATCH_SIZE", "5"))
+# Characters of each candidate shown to the LLM scorer (was a hard-coded 500).
+RERANK_PREVIEW_CHARS = int(os.getenv("RERANK_PREVIEW_CHARS", "1500"))
 
 # --- Retrieval Configuration ---
 # Local search returns nothing unless the best match's dense (cosine) similarity reaches this.

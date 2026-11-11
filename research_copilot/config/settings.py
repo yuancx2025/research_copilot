@@ -54,6 +54,7 @@ except ImportError:
     RERANK_TOP_K = int(os.getenv("RERANK_TOP_K", "5"))
     RERANK_INITIAL_K = int(os.getenv("RERANK_INITIAL_K", "20"))
     RERANK_BATCH_SIZE = int(os.getenv("RERANK_BATCH_SIZE", "5"))
+    RERANK_PREVIEW_CHARS = int(os.getenv("RERANK_PREVIEW_CHARS", "1500"))
 
     # --- Retrieval Configuration (see gcp_settings.py for rationale) ---
     _min_dense = os.getenv("RETRIEVAL_MIN_DENSE_SCORE", "0.4").strip().lower()
