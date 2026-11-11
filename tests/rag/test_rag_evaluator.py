@@ -1,6 +1,8 @@
 """
 Tests for rag/evaluator.py - RAG evaluation metrics
 """
+import math
+
 import pytest
 from langchain_core.documents import Document
 
@@ -184,6 +186,38 @@ class TestRAGEvaluator:
         assert "mrr" in comparison["baseline"]
         assert "mrr" in comparison["improved"]
     
+    def test_chunks_of_one_parent_count_once_for_recall(self, evaluator):
+        """Two retrieved children of the same relevant parent must not push recall above 1."""
+        docs = [
+            Document(page_content="a", metadata={"parent_id": "p1"}),
+            Document(page_content="b", metadata={"parent_id": "p1"}),
+            Document(page_content="c", metadata={"parent_id": "p9"}),
+        ]
+        metrics = evaluator.evaluate_retrieval("q", docs, ["p1"], k=3)
+        assert metrics["recall@k"] == 1.0
+        assert metrics["hit_rate@k"] == 1.0
+        assert abs(metrics["precision@k"] - 2 / 3) < 1e-9  # two of three chunks are on target
+        assert metrics["ndcg@k"] == 1.0
+
+    def test_mrr_and_ndcg_rank_unique_documents(self, evaluator):
+        docs = [
+            Document(page_content="a", metadata={"parent_id": "p9"}),
+            Document(page_content="b", metadata={"parent_id": "p9"}),
+            Document(page_content="c", metadata={"parent_id": "p1"}),
+        ]
+        assert evaluator.mrr(docs, ["p1"]) == 0.5  # second unique document, third chunk
+        assert abs(evaluator.ndcg_at_k(docs, ["p1"], k=3) - 1 / math.log2(3)) < 1e-9
+        assert evaluator.ndcg_at_k(docs, ["p1"], k=2) == 0.0
+
+    def test_ndcg_graded_relevance(self, evaluator, mock_documents):
+        perfect = evaluator.ndcg_at_k(mock_documents, {"doc1": 2, "doc2": 1}, k=5)
+        swapped = evaluator.ndcg_at_k(mock_documents, {"doc1": 1, "doc2": 2}, k=5)
+        assert perfect == 1.0 and 0 < swapped < 1
+
+    def test_custom_id_key(self):
+        docs = [Document(page_content="a", metadata={"parent_id": "x_parent_0", "corpus_id": "42"})]
+        assert RAGEvaluator(id_key="corpus_id").hit_rate_at_k(docs, ["42"], k=1) == 1.0
+
     def test_document_without_parent_id(self, evaluator):
         """Test evaluation with documents using source instead of parent_id"""
         docs = [
