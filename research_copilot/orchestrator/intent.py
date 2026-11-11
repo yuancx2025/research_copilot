@@ -1,17 +1,20 @@
 """Shared intent helpers: available sources and explicit Notion requests."""
 import re
 
-_NOTION_PRODUCT = re.compile(r"\bNotion\b")
+# A request for the user's *own* Notion workspace, not any mention of the word or the product.
+# "Notion versus Obsidian" and "Notion of convergence" must not match: matching forces a Notion
+# search after the LLM routes, and with Notion disconnected the request is refused outright.
 _NOTION_WORKSPACE = re.compile(
-    r"\bnotion\b.{0,32}\b(note|notes|page|pages|workspace|database|wiki|connect)\b"
-    r"|\b(my|in|from|search|connect|open)\b.{0,24}\bnotion\b",
+    r"\b(?:my|our)\s+(?:own\s+)?notion\b"                                   # my Notion, our Notion
+    r"|\b(?:in|from|inside|within|search|open|connect|check)\s+(?:my\s+|our\s+)?notion\b"  # in Notion, search my Notion
+    r"|\bnotion\s+(?:notes?|pages?|workspaces?|databases?|wikis?|docs?)\b",  # Notion notes, Notion page
     re.I,
 )
 
 
 def explicit_notion_request(message: str) -> bool:
-    text = message or ""
-    return bool(_NOTION_PRODUCT.search(text) or _NOTION_WORKSPACE.search(text))
+    """True when the message asks for the user's own Notion content."""
+    return bool(_NOTION_WORKSPACE.search(message or ""))
 
 
 def available_agents(state) -> list[str]:

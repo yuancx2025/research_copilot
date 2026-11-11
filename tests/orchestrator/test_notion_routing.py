@@ -13,6 +13,17 @@ from research_copilot.core.chat_interface import ChatInterface
     ('what did I write in Notion', True),
     ('Connect Notion', True),
     ('latest arxiv papers on attention', False),
+    # Capitalised word or product mention without asking for the user's workspace
+    ('Notion of convergence in stochastic gradient descent: what does it formally mean?', False),
+    ('Notion versus Obsidian for research note-taking: what do reviewers say?', False),
+    ('Is the notion of emergent abilities still supported?', False),
+    ('Errors in the notion of equivariance', False),
+    # Workspace requests in other phrasings
+    ('Find my Notion page about my reading list', True),
+    ('Open the Notion wiki page describing our deployment process', True),
+    ('In Notion, what tasks did I list?', True),
+    ('Pull my Notion database entries about alignment', True),
+    ('Look in my notion notes for LangGraph checkpoints', True),
 ])
 def test_explicit_notion_request_ignores_idiom(message, expected):
     assert explicit_notion_request(message) is expected
@@ -94,6 +105,38 @@ async def test_disconnected_explicit_notion_request_does_not_run_research():
     answer, data = await ChatInterface(rag).chat('search my Notion notes', [])
     assert 'Connect Notion' in answer
     assert data == {}
+
+
+@pytest.mark.asyncio
+async def test_product_question_is_researched_while_notion_disconnected():
+    """Asking about Notion the product must not be refused with 'Connect Notion'."""
+    seen = {}
+
+    async def astream(state, config, stream_mode):
+        seen['ran'] = True
+        yield {'aggregate': {}}
+
+    async def aget_state(config):
+        return SimpleNamespace(values={'messages': [AIMessage(content='ok')], 'citations': [], 'agent_results': {}})
+
+    async def prepare_run(notion):
+        return None
+
+    rag = SimpleNamespace(
+        llm=object(), notion_service=None, _graph_generation=None, prepare_run=prepare_run,
+        tool_registry=SimpleNamespace(available_ids=lambda: ['web', 'local']),
+        agent_graph=SimpleNamespace(astream=astream, aget_state=aget_state), get_config=lambda: {},
+    )
+    answer, _ = await ChatInterface(rag).chat('Notion versus Obsidian for research note-taking?', [])
+    assert seen.get('ran') and answer == 'ok'
+
+
+def test_classify_does_not_force_notion_for_product_or_idiom():
+    for query in ('Notion of convergence in SGD: what does it mean?', 'Notion versus Obsidian reviews'):
+        result = classify_research_intent({
+            'originalQuery': query, 'available_sources': ['arxiv', 'web', 'local', 'notion'], 'messages': [],
+        }, _NotionLLM())
+        assert 'notion' not in result['research_intent'], query
 
 
 @pytest.mark.asyncio

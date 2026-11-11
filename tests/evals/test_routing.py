@@ -44,8 +44,8 @@ def test_keyword_baseline_report_shape():
     assert report["complete"] and report["trace"] is None
     assert 0 < m["micro"]["f1"] < 1
     assert m["notion_selected_while_disconnected"] == 0
-    # The capitalised-"Notion" rule forces Notion for these idioms regardless of router.
-    assert m["notion_idiom_forced_by_rule"] == ["idiom-02", "idiom-07"]
+    # The workspace-intent rule must not force Notion for idioms or product mentions.
+    assert m["notion_idiom_forced_by_rule"] == []
     assert "source" in format_report(report)
 
 
