@@ -1,8 +1,12 @@
 import json
+import logging
 import shutil
 from research_copilot.config import settings as config
 from pathlib import Path
 from typing import List, Dict
+
+logger = logging.getLogger(__name__)
+
 
 class ParentStoreManager:
     __store_path: Path
@@ -29,11 +33,19 @@ class ParentStoreManager:
         return json.loads(file_path.read_text(encoding="utf-8"))
     
     def load_many(self, parent_ids: List[str]) -> List[Dict]:
-        unique_ids = sorted(set(parent_ids))
+        """Load parents in the order requested (the retrieval ranking), once each.
+
+        Missing ids are skipped with a warning instead of failing the whole call,
+        so one stale id from the vector index does not hide the other parents.
+        Other read errors (corrupt JSON, permissions) still raise.
+        """
         results = []
-        
-        for parent_id in unique_ids:
-            data = self.load(parent_id)
+        for parent_id in dict.fromkeys(parent_ids):
+            try:
+                data = self.load(parent_id)
+            except FileNotFoundError:
+                logger.warning("Parent chunk %s is missing from the parent store; skipping it", parent_id)
+                continue
             results.append({
                 "content": data["page_content"],
                 "parent_id": parent_id,
