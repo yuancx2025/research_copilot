@@ -107,10 +107,11 @@ class TestReranker:
         
         reranker = Reranker(llm=mock_llm)
         results = reranker.rerank(query, mock_documents, top_k=2)
-        
-        # Should fall back to default scores
-        assert len(results) == 2
-        assert all(score == 0.5 for _, score in results)
+
+        # Falls back to the retrieval order (not a flat 0.5 for everything) and counts the failure
+        assert [doc for doc, _ in results] == mock_documents[:2]
+        assert results[0][1] > results[1][1]
+        assert reranker.stats["failed_batches"] == 1 and reranker.stats["fallbacks"] == 1
     
     def test_rerank_custom_top_k(self, mock_llm, mock_documents):
         """Test reranking with custom top_k"""
@@ -178,11 +179,25 @@ class TestReranker:
         """Test parsing falls back on invalid JSON"""
         reranker = Reranker(llm=mock_llm)
         
-        scores = reranker._parse_scores("invalid json", 3)
-        
-        # Should return default scores
-        assert len(scores) == 3
-        assert all(s == 0.5 for s in scores)
+        # Unparseable output or a wrong count is a failure, not a set of made-up 0.5 scores
+        assert reranker._parse_scores("invalid json", 3) is None
+        assert reranker._parse_scores("[0.9, 0.8]", 3) is None
+        assert reranker._parse_scores("[0.9, 0.8, 0.7, 0.6]", 3) is None
+
+    def test_partial_failure_keeps_retrieval_order(self, mock_llm, mock_documents):
+        """One bad batch must not interleave placeholder scores with real ones."""
+        good, bad = MagicMock(content="[0.1, 0.2]"), MagicMock(content="no scores here")
+        mock_llm.invoke.side_effect = [good, bad]
+        reranker = Reranker(llm=mock_llm, batch_size=2)
+        results = reranker.rerank("q", mock_documents, top_k=3)
+        assert [doc for doc, _ in results] == mock_documents
+        assert reranker.stats == {"calls": 1, "batches": 2, "failed_batches": 1, "fallbacks": 1}
+
+    def test_preview_length_is_configurable(self, mock_llm):
+        long_doc = Document(page_content="x" * 3000, metadata={})
+        reranker = Reranker(llm=mock_llm, preview_chars=1200)
+        prompt = reranker._create_scoring_prompt("q", [long_doc])
+        assert "x" * 1200 in prompt and "x" * 1201 not in prompt
     
     def test_parse_scores_normalization(self, mock_llm):
         """Test that scores are normalized to 0.0-1.0 range"""

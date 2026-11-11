@@ -52,7 +52,52 @@ def build_parser():
     default = Path.home() / '.local/share/research-copilot/exports.sqlite3'
     imports.add_argument('--sqlite', default=str(default), help=f'Ledger path (default: {default})')
     imports.set_defaults(func=_import_exports)
+
+    evals = commands.add_parser('eval', help='Offline evaluation suites').add_subparsers(dest='suite', required=True)
+    routing = evals.add_parser('routing', help='Score intent routing against a labelled query set')
+    routing.add_argument('--router', choices=['llm', 'keyword'], default='llm',
+                         help='llm runs the real classify_intent node; keyword is the baseline (no API calls)')
+    routing.add_argument('--dataset', default='evals/datasets/routing.jsonl')
+    routing.add_argument('--out', default='evals/results', help='Directory for the JSON report')
+    routing.add_argument('--label', help='Suffix for the report filename, e.g. a prompt version')
+    routing.add_argument('--model', help='Override LLM_MODEL for this run, e.g. gemini-3.5-flash-lite')
+    routing.add_argument('--limit', type=int, help='Only evaluate the first N cases')
+    routing.add_argument('--max-api-calls', type=int, default=200,
+                         help='Stop once this many uncached LLM requests were made (default: 200)')
+    routing.add_argument('--rpm', type=float, default=8,
+                         help='Client-side request rate limit per minute; 0 disables (default: 8)')
+    routing.add_argument('--cache', default='evals/.cache/llm_cache.sqlite',
+                         help='SQLite LLM response cache; reruns of unchanged prompts are free')
+    routing.add_argument('--no-cache', action='store_true', help='Always call the API')
+    routing.add_argument('--verbose', action='store_true', help='Print each case as it runs')
+    routing.set_defaults(func=_eval_routing)
+
+    retrieval = evals.add_parser('retrieval', help='Score local retrieval on a BEIR-format dataset (no API calls)')
+    retrieval.add_argument('--data-dir', default='evals/.cache/beir/scifact-download/scifact',
+                           help='Folder with corpus.jsonl, queries.jsonl and qrels/<split>.tsv')
+    retrieval.add_argument('--split', default='test')
+    retrieval.add_argument('--index-dir', default='evals/.cache/qdrant', help='Local Qdrant folder for eval indexes')
+    retrieval.add_argument('--chunk-size', type=int, default=500, help='Child chunk size (production: 500)')
+    retrieval.add_argument('--chunk-overlap', type=int, default=100, help='Child chunk overlap (production: 100)')
+    retrieval.add_argument('--configs', help='Comma-separated config names (default: all)')
+    retrieval.add_argument('--off-topic', default='evals/datasets/routing.jsonl',
+                           help='JSONL whose non-paper queries probe off-topic score separation; "" to skip')
+    retrieval.add_argument('--limit', type=int, help='Only evaluate the first N queries')
+    retrieval.add_argument('--out', default='evals/results')
+    retrieval.add_argument('--label')
+    retrieval.add_argument('--verbose', action='store_true')
+    retrieval.set_defaults(func=_eval_retrieval)
     return parser
+
+
+def _eval_retrieval(args):
+    from research_copilot.evals.retrieval import run_cli
+    return run_cli(args)
+
+
+def _eval_routing(args):
+    from research_copilot.evals.routing import run_cli
+    return run_cli(args)
 
 
 def main(argv=None):
@@ -60,11 +105,11 @@ def main(argv=None):
     load_dotenv()
     args = build_parser().parse_args(argv)
     try:
-        args.func(args)
+        code = args.func(args)
     except Exception as exc:
         print(f'error: {exc}', file=sys.stderr)
         return 1
-    return 0
+    return code if isinstance(code, int) else 0
 
 
 if __name__ == '__main__':

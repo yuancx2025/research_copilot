@@ -55,6 +55,45 @@ async def test_progress_events_map_graph_nodes():
 
 
 @pytest.mark.asyncio
+async def test_run_trace_is_written_when_enabled(tmp_path, monkeypatch):
+    import json
+    monkeypatch.setenv('RUN_TRACE_DIR', str(tmp_path))
+    seen = {}
+
+    rag = _rag([], {'messages': [AIMessage(content='answer')], 'questionIsClear': True,
+                    'citations': [], 'agent_results': {}, 'routing_decision': {'fallback': None}})
+
+    async def astream(inputs, config, stream_mode):
+        seen['callbacks'] = config.get('callbacks')
+        yield {'classify_intent': {'research_intent': ['web']}}
+
+    rag.agent_graph.astream = astream
+    events = await _collect(rag)
+    assert events[-1]['type'] == 'result'
+    assert len(seen['callbacks']) == 1
+    [record] = [json.loads(line) for line in (tmp_path / 'runs.jsonl').read_text().splitlines()]
+    assert record['thread_id'] == 'thread-1'
+    assert record['sources_selected'] == ['web']
+    assert record['trace']['llm']['calls'] == 0
+
+
+@pytest.mark.asyncio
+async def test_no_trace_callbacks_by_default(monkeypatch):
+    monkeypatch.delenv('RUN_TRACE_DIR', raising=False)
+    seen = {}
+    rag = _rag([], {'messages': [AIMessage(content='answer')], 'questionIsClear': True,
+                    'citations': [], 'agent_results': {}})
+
+    async def astream(inputs, config, stream_mode):
+        seen['callbacks'] = config.get('callbacks')
+        yield {'aggregate': {}}
+
+    rag.agent_graph.astream = astream
+    await _collect(rag)
+    assert seen['callbacks'] is None
+
+
+@pytest.mark.asyncio
 async def test_resume_continues_from_human_input():
     seen = {}
 

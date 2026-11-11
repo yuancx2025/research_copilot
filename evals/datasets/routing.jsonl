@@ -1,0 +1,153 @@
+{"id": "paper-01", "query": "Find recent arXiv papers on speculative decoding for LLM inference", "required": ["arxiv"], "acceptable": ["web", "local"], "notion": false, "tags": ["paper", "explicit"]}
+{"id": "paper-02", "query": "What does the original 'Attention Is All You Need' paper propose?", "required": ["arxiv"], "acceptable": ["web", "local"], "notion": false, "tags": ["paper", "explicit"]}
+{"id": "paper-03", "query": "Survey papers on retrieval-augmented generation evaluation", "required": ["arxiv"], "acceptable": ["web", "local"], "notion": true, "tags": ["paper", "explicit"]}
+{"id": "paper-04", "query": "Key publications on diffusion models for image generation", "required": ["arxiv"], "acceptable": ["web", "local"], "notion": false, "tags": ["paper", "explicit"]}
+{"id": "paper-05", "query": "Summarize the research literature on LoRA and parameter-efficient fine-tuning", "required": ["arxiv"], "acceptable": ["web", "local"], "notion": false, "tags": ["paper", "implicit"]}
+{"id": "paper-06", "query": "Which papers introduced mixture-of-experts layers in transformers?", "required": ["arxiv"], "acceptable": ["web", "local"], "notion": false, "tags": ["paper", "explicit"]}
+{"id": "paper-07", "query": "Academic work on catastrophic forgetting in continual learning", "required": ["arxiv"], "acceptable": ["web", "local"], "notion": false, "tags": ["paper", "implicit"]}
+{"id": "paper-08", "query": "Peer-reviewed studies on chain-of-thought prompting effectiveness", "required": ["arxiv"], "acceptable": ["web", "local"], "notion": false, "tags": ["paper", "implicit"]}
+{"id": "paper-09", "query": "Find the arXiv preprint for DPO, direct preference optimization", "required": ["arxiv"], "acceptable": ["web", "local"], "notion": false, "tags": ["paper", "explicit"]}
+{"id": "paper-10", "query": "State of the art methods for graph neural network oversmoothing", "required": ["arxiv"], "acceptable": ["web", "local"], "notion": false, "tags": ["paper", "implicit"]}
+{"id": "paper-11", "query": "What are the theoretical results on the convergence of Adam?", "required": ["arxiv"], "acceptable": ["web", "local"], "notion": false, "tags": ["paper", "implicit"]}
+{"id": "paper-12", "query": "Benchmarks proposed for evaluating LLM agents in research publications", "required": ["arxiv"], "acceptable": ["web", "github", "local"], "notion": false, "tags": ["paper", "explicit"]}
+{"id": "paper-13", "query": "Compare the methods in the FlashAttention and FlashAttention-2 papers", "required": ["arxiv"], "acceptable": ["web", "github", "local"], "notion": false, "tags": ["paper", "explicit"]}
+{"id": "paper-14", "query": "Recent research on mechanistic interpretability of language models", "required": ["arxiv"], "acceptable": ["web", "local"], "notion": false, "tags": ["paper", "implicit"]}
+{"id": "paper-15", "query": "Scientific publications about protein structure prediction after AlphaFold", "required": ["arxiv"], "acceptable": ["web", "local"], "notion": false, "tags": ["paper", "explicit"]}
+{"id": "video-01", "query": "Find a YouTube tutorial on building a RAG app with LangChain", "required": ["youtube"], "acceptable": ["web", "github", "local"], "notion": false, "tags": ["video", "explicit"]}
+{"id": "video-02", "query": "Video lecture explaining backpropagation intuitively", "required": ["youtube"], "acceptable": ["web", "local"], "notion": true, "tags": ["video", "explicit"]}
+{"id": "video-03", "query": "Recommend some beginner-friendly videos on Kubernetes", "required": ["youtube"], "acceptable": ["web", "local"], "notion": false, "tags": ["video", "explicit"]}
+{"id": "video-04", "query": "Is there a conference talk about LangGraph multi-agent design?", "required": ["youtube"], "acceptable": ["web", "local"], "notion": false, "tags": ["video", "implicit"]}
+{"id": "video-05", "query": "Watch-along walkthrough of fine-tuning Llama with QLoRA", "required": ["youtube"], "acceptable": ["web", "github", "local"], "notion": false, "tags": ["video", "implicit"]}
+{"id": "video-06", "query": "Andrej Karpathy's lecture on building GPT from scratch", "required": ["youtube"], "acceptable": ["github", "web", "local"], "notion": false, "tags": ["video", "explicit"]}
+{"id": "video-07", "query": "Visual explanation of how diffusion models work, preferably animated", "required": ["youtube"], "acceptable": ["web", "local"], "notion": false, "tags": ["video", "implicit"]}
+{"id": "video-08", "query": "Screencast showing how to set up a Postgres replica", "required": ["youtube"], "acceptable": ["web", "local"], "notion": false, "tags": ["video", "implicit"]}
+{"id": "video-09", "query": "Good YouTube channels for learning linear algebra", "required": ["youtube"], "acceptable": ["web", "local"], "notion": false, "tags": ["video", "explicit"]}
+{"id": "video-10", "query": "Step-by-step video guide to deploying FastAPI on Cloud Run", "required": ["youtube"], "acceptable": ["web", "local"], "notion": false, "tags": ["video", "explicit"]}
+{"id": "video-11", "query": "Lecture series on reinforcement learning from a university course", "required": ["youtube"], "acceptable": ["web", "local"], "notion": false, "tags": ["video", "explicit"]}
+{"id": "video-12", "query": "Recorded keynote about the future of AI agents from a recent conference", "required": ["youtube"], "acceptable": ["web", "local"], "notion": false, "tags": ["video", "implicit"]}
+{"id": "video-13", "query": "Short explainer clip on what a vector database is", "required": ["youtube"], "acceptable": ["web", "local"], "notion": false, "tags": ["video", "implicit"]}
+{"id": "video-14", "query": "Podcast-style video interview discussing scaling laws", "required": ["youtube"], "acceptable": ["web", "local"], "notion": false, "tags": ["video", "explicit"]}
+{"id": "video-15", "query": "How-to video for configuring Qdrant hybrid search", "required": ["youtube"], "acceptable": ["web", "github", "local"], "notion": false, "tags": ["video", "explicit"]}
+{"id": "code-01", "query": "Find GitHub repositories implementing ColBERT late interaction retrieval", "required": ["github"], "acceptable": ["arxiv", "web", "local"], "notion": false, "tags": ["code", "explicit"]}
+{"id": "code-02", "query": "Open-source implementation of a LangGraph supervisor agent", "required": ["github"], "acceptable": ["web", "local"], "notion": false, "tags": ["code", "explicit"]}
+{"id": "code-03", "query": "Show me example code for streaming SSE responses in FastAPI", "required": ["github"], "acceptable": ["web", "local"], "notion": true, "tags": ["code", "explicit"]}
+{"id": "code-04", "query": "Which repo is the reference implementation of LoRA?", "required": ["github"], "acceptable": ["arxiv", "web", "local"], "notion": false, "tags": ["code", "explicit"]}
+{"id": "code-05", "query": "Popular open-source libraries for PDF parsing in Python", "required": ["github"], "acceptable": ["web", "local"], "notion": false, "tags": ["code", "implicit"]}
+{"id": "code-06", "query": "Sample project using MCP servers with Python", "required": ["github"], "acceptable": ["web", "local"], "notion": false, "tags": ["code", "implicit"]}
+{"id": "code-07", "query": "Where can I find the source of the Qdrant Python client?", "required": ["github"], "acceptable": ["web", "local"], "notion": false, "tags": ["code", "implicit"]}
+{"id": "code-08", "query": "Starter template for a React + Vite + TypeScript app with Zod", "required": ["github"], "acceptable": ["web", "local"], "notion": false, "tags": ["code", "implicit"]}
+{"id": "code-09", "query": "Implementation of BM25 in Rust", "required": ["github"], "acceptable": ["web", "local"], "notion": false, "tags": ["code", "explicit"]}
+{"id": "code-10", "query": "Example of a LangChain callback handler that tracks token usage", "required": ["github"], "acceptable": ["web", "local"], "notion": false, "tags": ["code", "implicit"]}
+{"id": "code-11", "query": "Open-source alternatives to Perplexity that I can self-host", "required": ["github"], "acceptable": ["web", "local"], "notion": false, "tags": ["code", "implicit"]}
+{"id": "code-12", "query": "Code for training a small GPT on Shakespeare", "required": ["github"], "acceptable": ["youtube", "web", "local"], "notion": false, "tags": ["code", "explicit"]}
+{"id": "code-13", "query": "Repos that benchmark vector databases", "required": ["github"], "acceptable": ["web", "local"], "notion": false, "tags": ["code", "explicit"]}
+{"id": "code-14", "query": "How do other projects structure Alembic migrations for async SQLAlchemy? Show real examples", "required": ["github"], "acceptable": ["web", "local"], "notion": false, "tags": ["code", "implicit"]}
+{"id": "code-15", "query": "Find a well-maintained Python library for rate limiting API calls", "required": ["github"], "acceptable": ["web", "local"], "notion": false, "tags": ["code", "implicit"]}
+{"id": "code-16", "query": "Reference implementation for the FlashAttention CUDA kernel", "required": ["github"], "acceptable": ["arxiv", "local"], "notion": false, "tags": ["code", "explicit"]}
+{"id": "code-17", "query": "Examples of pytest fixtures for testing LangGraph graphs", "required": ["github"], "acceptable": ["web", "local"], "notion": false, "tags": ["code", "implicit"]}
+{"id": "code-18", "query": "Implementation details of reciprocal rank fusion in open-source search engines", "required": ["github"], "acceptable": ["web", "arxiv", "local"], "notion": false, "tags": ["code", "explicit"]}
+{"id": "web-01", "query": "What is the current pricing for the Gemini API?", "required": ["web"], "acceptable": ["local"], "notion": false, "tags": ["web", "time"]}
+{"id": "web-02", "query": "Latest news about OpenAI's model releases", "required": ["web"], "acceptable": ["local"], "notion": false, "tags": ["web", "time"]}
+{"id": "web-03", "query": "Overview of what a vector database is", "required": ["web"], "acceptable": ["youtube", "local"], "notion": true, "tags": ["web", "implicit"]}
+{"id": "web-04", "query": "How does Neon's serverless Postgres branching work?", "required": ["web"], "acceptable": ["youtube", "local"], "notion": false, "tags": ["web", "implicit"]}
+{"id": "web-05", "query": "Best practices for securing OAuth loopback redirects in desktop apps", "required": ["web"], "acceptable": ["github", "local"], "notion": false, "tags": ["web", "implicit"]}
+{"id": "web-06", "query": "Comparison of Qdrant vs Weaviate vs Pinecone in 2026", "required": ["web"], "acceptable": ["github", "local"], "notion": false, "tags": ["web", "time"]}
+{"id": "web-07", "query": "Official documentation for LangGraph interrupts", "required": ["web"], "acceptable": ["github", "local"], "notion": false, "tags": ["web", "explicit"]}
+{"id": "web-08", "query": "What changed in Python 3.13?", "required": ["web"], "acceptable": ["local"], "notion": false, "tags": ["web", "implicit"]}
+{"id": "web-09", "query": "Blog posts about lessons learned building production RAG systems", "required": ["web"], "acceptable": ["arxiv", "youtube", "local"], "notion": false, "tags": ["web", "explicit"]}
+{"id": "web-10", "query": "What is the Model Context Protocol?", "required": ["web"], "acceptable": ["github", "youtube", "local"], "notion": false, "tags": ["web", "implicit"]}
+{"id": "web-11", "query": "Current state of EU AI Act enforcement", "required": ["web"], "acceptable": ["local"], "notion": false, "tags": ["web", "time"]}
+{"id": "web-12", "query": "How do I enable pgvector on Neon?", "required": ["web"], "acceptable": ["github", "local"], "notion": false, "tags": ["web", "implicit"]}
+{"id": "web-13", "query": "Who maintains the FastAPI project and how is it funded?", "required": ["web"], "acceptable": ["github", "local"], "notion": false, "tags": ["web", "implicit"]}
+{"id": "web-14", "query": "Explain what Server-Sent Events are and how they differ from WebSockets", "required": ["web"], "acceptable": ["youtube", "local"], "notion": false, "tags": ["web", "implicit"]}
+{"id": "web-15", "query": "Tavily search API rate limits", "required": ["web"], "acceptable": ["local"], "notion": false, "tags": ["web", "implicit"]}
+{"id": "web-16", "query": "Recent outages or incidents reported for GitHub Actions", "required": ["web"], "acceptable": ["local"], "notion": false, "tags": ["web", "time", "keyword-trap"]}
+{"id": "web-17", "query": "Article explaining reciprocal rank fusion", "required": ["web"], "acceptable": ["arxiv", "local"], "notion": false, "tags": ["web", "explicit"]}
+{"id": "web-18", "query": "What's the difference between Gemini Flash and Flash-Lite models?", "required": ["web"], "acceptable": ["local"], "notion": false, "tags": ["web", "implicit"]}
+{"id": "time-01", "query": "What are the latest developments in small language models this year?", "required": ["arxiv", "web"], "acceptable": ["youtube", "github", "local"], "notion": true, "tags": ["time", "multi"]}
+{"id": "time-02", "query": "Recent breakthroughs in long-context LLMs in 2026", "required": ["arxiv", "web"], "acceptable": ["local"], "notion": false, "tags": ["time", "multi"]}
+{"id": "time-03", "query": "Current state of the art for open-weight coding models", "required": ["web"], "acceptable": ["arxiv", "github", "local"], "notion": false, "tags": ["time", "keyword-trap"]}
+{"id": "time-04", "query": "Newest research and news on AI agent safety evaluations", "required": ["arxiv", "web"], "acceptable": ["local"], "notion": false, "tags": ["time", "multi"]}
+{"id": "time-05", "query": "Latest updates on retrieval-augmented generation techniques", "required": ["arxiv", "web"], "acceptable": ["github", "youtube", "local"], "notion": false, "tags": ["time", "multi"]}
+{"id": "time-06", "query": "What happened in quantum error correction research recently?", "required": ["arxiv", "web"], "acceptable": ["local"], "notion": false, "tags": ["time", "multi"]}
+{"id": "time-07", "query": "Up-to-date overview of multimodal model releases in the last few months", "required": ["web"], "acceptable": ["arxiv", "youtube", "local"], "notion": false, "tags": ["time"]}
+{"id": "time-08", "query": "Recent papers and blog discussions about test-time compute scaling", "required": ["arxiv", "web"], "acceptable": ["local"], "notion": false, "tags": ["time", "multi"]}
+{"id": "time-09", "query": "Where does the field stand on watermarking AI-generated text as of 2026?", "required": ["arxiv", "web"], "acceptable": ["local"], "notion": false, "tags": ["time", "multi"]}
+{"id": "time-10", "query": "Trending GitHub projects for AI agents this month", "required": ["github"], "acceptable": ["web", "local"], "notion": false, "tags": ["time", "code"]}
+{"id": "multi-01", "query": "I want to learn transformers: give me the paper, a video explanation, and a code implementation", "required": ["arxiv", "youtube", "github"], "acceptable": ["web", "local"], "notion": true, "tags": ["multi", "explicit"]}
+{"id": "multi-02", "query": "Explain attention mechanisms with a tutorial video and example code", "required": ["youtube", "github"], "acceptable": ["web", "arxiv", "local"], "notion": false, "tags": ["multi", "explicit"]}
+{"id": "multi-03", "query": "How do I implement a vector search engine? Papers and code welcome", "required": ["arxiv", "github"], "acceptable": ["web", "local"], "notion": false, "tags": ["multi", "explicit"]}
+{"id": "multi-04", "query": "Learn Rust async: articles and video tutorials", "required": ["web", "youtube"], "acceptable": ["github", "local"], "notion": false, "tags": ["multi", "explicit"]}
+{"id": "multi-05", "query": "What is HNSW, and is there a good implementation I can read?", "required": ["github"], "acceptable": ["arxiv", "web", "youtube", "local"], "notion": false, "tags": ["multi", "implicit"]}
+{"id": "multi-06", "query": "Research and reference code for speculative decoding", "required": ["arxiv", "github"], "acceptable": ["web", "local"], "notion": false, "tags": ["multi", "explicit"]}
+{"id": "multi-07", "query": "Teach me reinforcement learning from human feedback: theory and a hands-on walkthrough", "required": ["arxiv", "youtube"], "acceptable": ["web", "github", "local"], "notion": false, "tags": ["multi", "implicit"]}
+{"id": "multi-08", "query": "Find the DSPy paper and its GitHub repo", "required": ["arxiv", "github"], "acceptable": ["web", "local"], "notion": false, "tags": ["multi", "explicit"]}
+{"id": "multi-09", "query": "Compare LangGraph and CrewAI using docs, blog posts, and their source code", "required": ["web", "github"], "acceptable": ["youtube", "local"], "notion": false, "tags": ["multi", "explicit"]}
+{"id": "multi-10", "query": "Videos and papers about neural radiance fields", "required": ["youtube", "arxiv"], "acceptable": ["web", "github", "local"], "notion": false, "tags": ["multi", "explicit"]}
+{"id": "multi-11", "query": "How are people using MCP in practice? Look at articles and open-source servers", "required": ["web", "github"], "acceptable": ["youtube", "local"], "notion": false, "tags": ["multi", "explicit"]}
+{"id": "multi-12", "query": "Give me a study path for learning CUDA: tutorials, docs, and sample code", "required": ["youtube", "web", "github"], "acceptable": ["local"], "notion": false, "tags": ["multi", "explicit"]}
+{"id": "multi-13", "query": "Paper and conference talk on Constitutional AI", "required": ["arxiv", "youtube"], "acceptable": ["web", "local"], "notion": false, "tags": ["multi", "explicit"]}
+{"id": "multi-14", "query": "Explain BM25 and show a minimal implementation", "required": ["github"], "acceptable": ["web", "arxiv", "youtube", "local"], "notion": false, "tags": ["multi", "implicit"]}
+{"id": "multi-15", "query": "Survey the ecosystem of Python PDF-to-Markdown converters: docs and repos", "required": ["github", "web"], "acceptable": ["local"], "notion": false, "tags": ["multi", "explicit"]}
+{"id": "multi-16", "query": "What does the research say about RAG chunk size, and what do practitioners recommend?", "required": ["arxiv", "web"], "acceptable": ["youtube", "local"], "notion": true, "tags": ["multi", "implicit"]}
+{"id": "multi-17", "query": "Introductory video and a beginner article on gradient descent", "required": ["youtube", "web"], "acceptable": ["local"], "notion": false, "tags": ["multi", "explicit"]}
+{"id": "multi-18", "query": "Find the Mamba paper, an explanation video, and the official implementation", "required": ["arxiv", "youtube", "github"], "acceptable": ["web", "local"], "notion": false, "tags": ["multi", "explicit"]}
+{"id": "multi-19", "query": "Practical guides and code for evaluating LLM apps with an LLM judge", "required": ["web", "github"], "acceptable": ["arxiv", "youtube", "local"], "notion": false, "tags": ["multi", "explicit"]}
+{"id": "multi-20", "query": "Lecture plus textbook-style resources on Bayesian optimization", "required": ["youtube", "web"], "acceptable": ["arxiv", "local"], "notion": false, "tags": ["multi", "implicit"]}
+{"id": "local-01", "query": "Summarize the PDF I uploaded about transformer architectures", "required": ["local"], "acceptable": [], "notion": false, "tags": ["local", "explicit"]}
+{"id": "local-02", "query": "What does my uploaded document say about evaluation metrics?", "required": ["local"], "acceptable": [], "notion": true, "tags": ["local", "explicit"]}
+{"id": "local-03", "query": "Search my local documents for anything on hybrid search", "required": ["local"], "acceptable": [], "notion": false, "tags": ["local", "explicit"]}
+{"id": "local-04", "query": "In the files I indexed, where is chunk overlap discussed?", "required": ["local"], "acceptable": [], "notion": false, "tags": ["local", "explicit"]}
+{"id": "local-05", "query": "Compare what my uploaded paper says with the latest public research", "required": ["local", "arxiv"], "acceptable": ["web"], "notion": true, "tags": ["local", "multi", "time"]}
+{"id": "local-06", "query": "Based on my documents, what are the main limitations of the method?", "required": ["local"], "acceptable": [], "notion": true, "tags": ["local", "explicit"]}
+{"id": "local-07", "query": "Find the section on Qdrant configuration in my knowledge base", "required": ["local"], "acceptable": [], "notion": false, "tags": ["local", "explicit"]}
+{"id": "local-08", "query": "Does any of my uploaded material mention reciprocal rank fusion?", "required": ["local"], "acceptable": [], "notion": false, "tags": ["local", "explicit"]}
+{"id": "local-09", "query": "Use my local notes on the course readings to explain gradient clipping", "required": ["local"], "acceptable": ["web", "notion"], "notion": true, "tags": ["local", "ambiguous"]}
+{"id": "local-10", "query": "Check my indexed docs and the web for the definition of nDCG", "required": ["local", "web"], "acceptable": ["arxiv"], "notion": false, "tags": ["local", "multi"]}
+{"id": "local-11", "query": "From the lecture slides I uploaded, list the key formulas", "required": ["local"], "acceptable": [], "notion": false, "tags": ["local", "keyword-trap"]}
+{"id": "local-12", "query": "What did the uploaded design doc decide about authentication?", "required": ["local"], "acceptable": [], "notion": false, "tags": ["local", "explicit"]}
+{"id": "local-13", "query": "Cross-reference my uploaded thesis draft with GitHub implementations of the same algorithm", "required": ["local", "github"], "acceptable": ["arxiv"], "notion": false, "tags": ["local", "multi"]}
+{"id": "local-14", "query": "Give me quotes from my documents about parent-child chunking", "required": ["local"], "acceptable": [], "notion": false, "tags": ["local", "explicit"]}
+{"id": "notion-01", "query": "What did I write about MCP in Notion?", "required": ["notion"], "acceptable": ["local"], "notion": true, "tags": ["notion", "explicit"]}
+{"id": "notion-02", "query": "Search my Notion workspace for meeting notes on the Q3 roadmap", "required": ["notion"], "acceptable": ["local"], "notion": true, "tags": ["notion", "explicit"]}
+{"id": "notion-03", "query": "Find my Notion page about my transformer reading list", "required": ["notion"], "acceptable": ["local"], "notion": true, "tags": ["notion", "explicit"]}
+{"id": "notion-04", "query": "Combine my Notion notes on RAG with recent arXiv papers", "required": ["notion", "arxiv"], "acceptable": ["web", "local"], "notion": true, "tags": ["notion", "explicit", "multi"]}
+{"id": "notion-05", "query": "Open the Notion wiki page describing our deployment process", "required": ["notion"], "acceptable": ["local"], "notion": true, "tags": ["notion", "explicit"]}
+{"id": "notion-06", "query": "In Notion, what tasks did I list for the evaluation project?", "required": ["notion"], "acceptable": ["local"], "notion": true, "tags": ["notion", "explicit"]}
+{"id": "notion-07", "query": "Compare my Notion notes on vector databases with current web articles", "required": ["notion", "web"], "acceptable": ["local"], "notion": true, "tags": ["notion", "explicit", "multi"]}
+{"id": "notion-08", "query": "Look in my notion notes for anything about LangGraph checkpoints", "required": ["notion"], "acceptable": ["local"], "notion": true, "tags": ["notion", "explicit"]}
+{"id": "notion-09", "query": "Pull my Notion database entries about papers I've read on alignment", "required": ["notion"], "acceptable": ["arxiv", "local"], "notion": true, "tags": ["notion", "explicit", "keyword-trap"]}
+{"id": "notion-10", "query": "Summarize what I wrote in Notion about job interview prep", "required": ["notion"], "acceptable": ["local"], "notion": true, "tags": ["notion", "explicit"]}
+{"id": "notes-01", "query": "What did I write about retrieval evaluation in my notes?", "required": ["notion"], "acceptable": ["local"], "notion": true, "tags": ["notion", "implicit"]}
+{"id": "notes-02", "query": "Search my workspace pages for the onboarding checklist", "required": ["notion"], "acceptable": ["local"], "notion": true, "tags": ["notion", "implicit"]}
+{"id": "notes-03", "query": "Find the meeting notes from my last project sync", "required": ["notion"], "acceptable": ["local"], "notion": true, "tags": ["notion", "implicit"]}
+{"id": "notes-04", "query": "What's in my personal wiki about Kubernetes?", "required": ["notion"], "acceptable": ["local"], "notion": true, "tags": ["notion", "implicit"]}
+{"id": "notes-05", "query": "Remind me what I concluded in my notes about chunk size experiments", "required": ["notion"], "acceptable": ["local"], "notion": true, "tags": ["notion", "implicit"]}
+{"id": "notes-06", "query": "Check my saved notes and recent papers on preference optimization", "required": ["notion", "arxiv"], "acceptable": ["web", "local"], "notion": true, "tags": ["notion", "implicit", "multi"]}
+{"id": "notes-07", "query": "Did I already write down a reading list on interpretability?", "required": ["notion"], "acceptable": ["local"], "notion": true, "tags": ["notion", "implicit"]}
+{"id": "notes-08", "query": "Use my notes from the workspace to draft a summary of LoRA", "required": ["notion"], "acceptable": ["arxiv", "web", "local"], "notion": true, "tags": ["notion", "implicit"]}
+{"id": "idiom-01", "query": "I have a notion that smaller chunks help retrieval; is there evidence?", "required": ["arxiv"], "acceptable": ["web", "local"], "notion": true, "tags": ["notion-idiom"]}
+{"id": "idiom-02", "query": "Notion of convergence in stochastic gradient descent: what does it formally mean?", "required": ["arxiv"], "acceptable": ["web", "youtube", "local"], "notion": true, "tags": ["notion-idiom"]}
+{"id": "idiom-03", "query": "What is the notion of equivariance in geometric deep learning?", "required": ["arxiv"], "acceptable": ["web", "youtube", "local"], "notion": true, "tags": ["notion-idiom"]}
+{"id": "idiom-04", "query": "Explain the notion of a monad with code examples", "required": ["github"], "acceptable": ["web", "youtube", "local"], "notion": true, "tags": ["notion-idiom", "code"]}
+{"id": "idiom-05", "query": "Is the notion of emergent abilities in LLMs still supported by research?", "required": ["arxiv"], "acceptable": ["web", "local"], "notion": true, "tags": ["notion-idiom"]}
+{"id": "idiom-06", "query": "Where does the notion of attention come from historically? Find the original papers", "required": ["arxiv"], "acceptable": ["web", "local"], "notion": true, "tags": ["notion-idiom"]}
+{"id": "idiom-07", "query": "Notion versus Obsidian for research note-taking: what do reviewers say?", "required": ["web"], "acceptable": ["youtube", "local"], "notion": true, "tags": ["notion-idiom", "product"]}
+{"id": "trap-01", "query": "History of Morse code and how it was used in WWII", "required": ["web"], "acceptable": ["youtube", "local"], "notion": false, "tags": ["keyword-trap"]}
+{"id": "trap-02", "query": "Why do companies have dress codes? Research on workplace norms", "required": ["web"], "acceptable": ["arxiv", "local"], "notion": false, "tags": ["keyword-trap"]}
+{"id": "trap-03", "query": "How is paper recycled at an industrial scale?", "required": ["web"], "acceptable": ["youtube", "local"], "notion": false, "tags": ["keyword-trap"]}
+{"id": "trap-04", "query": "Best repository of public-domain recipes", "required": ["web"], "acceptable": ["local"], "notion": false, "tags": ["keyword-trap"]}
+{"id": "trap-05", "query": "What does 'implementation intentions' mean in psychology?", "required": ["web"], "acceptable": ["arxiv", "local"], "notion": false, "tags": ["keyword-trap"]}
+{"id": "trap-06", "query": "Find the lecture hall booking policy for Duke University", "required": ["web"], "acceptable": ["local"], "notion": false, "tags": ["keyword-trap"]}
+{"id": "trap-07", "query": "Compare tutorial-style documentation tools like Docusaurus and MkDocs", "required": ["web", "github"], "acceptable": ["local"], "notion": false, "tags": ["keyword-trap"]}
+{"id": "trap-08", "query": "What is the publication date of the next iPhone?", "required": ["web"], "acceptable": ["local"], "notion": false, "tags": ["keyword-trap", "time"]}
+{"id": "broad-01", "query": "Tell me everything about retrieval-augmented generation", "required": ["web"], "acceptable": ["arxiv", "youtube", "github", "local"], "notion": true, "tags": ["broad"]}
+{"id": "broad-02", "query": "Help me understand Kubernetes", "required": ["web"], "acceptable": ["youtube", "github", "local"], "notion": false, "tags": ["broad"]}
+{"id": "broad-03", "query": "I need to learn about vector embeddings for a project", "required": ["web"], "acceptable": ["arxiv", "youtube", "github", "local"], "notion": false, "tags": ["broad"]}
+{"id": "broad-04", "query": "Research the topic of AI alignment for me", "required": ["arxiv", "web"], "acceptable": ["youtube", "local"], "notion": true, "tags": ["broad", "multi"]}
+{"id": "broad-05", "query": "What should I know about graph databases?", "required": ["web"], "acceptable": ["youtube", "github", "arxiv", "local"], "notion": false, "tags": ["broad"]}
+{"id": "broad-06", "query": "Give me a comprehensive overview of reinforcement learning", "required": ["web"], "acceptable": ["arxiv", "youtube", "github", "local"], "notion": false, "tags": ["broad"]}
+{"id": "broad-07", "query": "Explain prompt injection and how to defend against it", "required": ["web"], "acceptable": ["arxiv", "github", "youtube", "local"], "notion": false, "tags": ["broad"]}
+{"id": "broad-08", "query": "Get me up to speed on WebAssembly", "required": ["web"], "acceptable": ["youtube", "github", "local"], "notion": false, "tags": ["broad"]}
+{"id": "broad-09", "query": "Is Rust a good choice for building a search engine?", "required": ["web"], "acceptable": ["github", "local"], "notion": false, "tags": ["broad"]}
+{"id": "broad-10", "query": "Deep dive on quantization for LLM inference", "required": ["arxiv", "web"], "acceptable": ["github", "youtube", "local"], "notion": false, "tags": ["broad", "multi"]}

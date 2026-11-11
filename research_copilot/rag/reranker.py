@@ -9,7 +9,10 @@ from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 import json
+import logging
 from research_copilot.config import settings as config
+
+logger = logging.getLogger(__name__)
 
 
 def _extract_text_from_content(content) -> str:
@@ -57,7 +60,8 @@ class Reranker:
     - Contextual understanding across different formats
     """
     
-    def __init__(self, llm: BaseChatModel, top_k: int = 5, batch_size: int = 5):
+    def __init__(self, llm: BaseChatModel, top_k: int = 5, batch_size: int = 5,
+                 preview_chars: Optional[int] = None):
         """
         Initialize LLM reranker.
         
@@ -65,10 +69,14 @@ class Reranker:
             llm: LLM instance (e.g., ChatOllama)
             top_k: Default number of documents to return
             batch_size: Number of documents to score in one LLM call
+            preview_chars: Characters of each document shown to the scorer (RERANK_PREVIEW_CHARS)
         """
         self.llm = llm
         self.top_k = top_k
         self.batch_size = batch_size
+        self.preview_chars = preview_chars or getattr(config, "RERANK_PREVIEW_CHARS", 1500)
+        # Failures used to be invisible (every document scored 0.5); count them instead.
+        self.stats = {"calls": 0, "batches": 0, "failed_batches": 0, "fallbacks": 0}
     
     def rerank(self, query: str, documents: List[Document], top_k: Optional[int] = None) -> List[Tuple[Document, float]]:
         """
@@ -90,14 +98,30 @@ class Reranker:
             return [(doc, 1.0) for doc in documents[:top_k or self.top_k]]
         
         top_k = top_k or self.top_k
+        self.stats["calls"] += 1
         
         # Score documents in batches
         scored_docs = []
+        failed = 0
         
         for i in range(0, len(documents), self.batch_size):
             batch = documents[i:i + self.batch_size]
             batch_scores = self._score_batch(query, batch)
+            self.stats["batches"] += 1
+            if batch_scores is None:
+                failed += 1
+                continue
             scored_docs.extend(zip(batch, batch_scores))
+
+        if failed:
+            # Mixing real scores with placeholders would rank documents arbitrarily, so keep the
+            # retrieval order. Scores are then rank-derived (1.0 down), not relevance judgements.
+            self.stats["failed_batches"] += failed
+            self.stats["fallbacks"] += 1
+            logger.warning("Reranker failed on %d of %d batches; keeping retrieval order",
+                           failed, -(-len(documents) // self.batch_size))
+            n = len(documents)
+            return [(doc, round(1.0 - i / n, 4)) for i, doc in enumerate(documents)][:top_k]
         
         # Sort by score (descending)
         scored_docs.sort(key=lambda x: x[1], reverse=True)
@@ -105,7 +129,7 @@ class Reranker:
         # Return top_k
         return scored_docs[:top_k]
     
-    def _score_batch(self, query: str, documents: List[Document]) -> List[float]:
+    def _score_batch(self, query: str, documents: List[Document]) -> Optional[List[float]]:
         """
         Score a batch of documents using LLM.
         
@@ -114,7 +138,7 @@ class Reranker:
             documents: Batch of documents to score
         
         Returns:
-            List of relevance scores (0.0 to 1.0)
+            List of relevance scores (0.0 to 1.0), or None if the call or parsing failed
         """
         # Create scoring prompt
         prompt = self._create_scoring_prompt(query, documents)
@@ -131,9 +155,8 @@ class Reranker:
             scores = self._parse_scores(response_text, len(documents))
             return scores
         except Exception as e:
-            print(f"Error scoring batch with LLM: {e}")
-            # Fallback: return equal scores
-            return [0.5] * len(documents)
+            logger.warning("Reranker LLM call failed: %s", e)
+            return None
     
     def _create_scoring_prompt(self, query: str, documents: List[Document]) -> str:
         """Create prompt for scoring documents"""
@@ -146,7 +169,7 @@ Documents to score:
         for i, doc in enumerate(documents):
             source_type = doc.metadata.get("source_type", "unknown")
             source = doc.metadata.get("source", "unknown")
-            content_preview = doc.page_content[:500]  # Limit content length
+            content_preview = doc.page_content[:self.preview_chars]
             
             prompt += f"""
 Document {i+1}:
@@ -184,8 +207,8 @@ Return scores as a JSON array of floats between 0.0 and 1.0, where:
 - 0.1-0.3 = Somewhat relevant
 - 0.0 = Not relevant"""
     
-    def _parse_scores(self, response: str, expected_count: int) -> List[float]:
-        """Parse scores from LLM response"""
+    def _parse_scores(self, response: str, expected_count: int) -> Optional[List[float]]:
+        """Parse one score per document from the LLM response; None if that is not what came back."""
         try:
             # Try to extract JSON array
             response = response.strip()
@@ -220,21 +243,18 @@ Return scores as a JSON array of floats between 0.0 and 1.0, where:
             if not isinstance(scores, list):
                 scores = [scores]
             
-            # Ensure correct length
-            while len(scores) < expected_count:
-                scores.append(0.5)  # Default score
-            
-            scores = scores[:expected_count]
+            # A wrong count means the scores cannot be matched to documents reliably
+            if len(scores) != expected_count:
+                logger.warning("Reranker returned %d scores for %d documents", len(scores), expected_count)
+                return None
             
             # Normalize to 0.0-1.0 range
             scores = [max(0.0, min(1.0, float(s))) for s in scores]
             
             return scores
         except Exception as e:
-            print(f"Error parsing scores: {e}")
-            print(f"Response was: {response[:200]}")
-            # Fallback: return default scores
-            return [0.5] * expected_count
+            logger.warning("Could not parse reranker scores (%s): %r", e, response[:200])
+            return None
     
     def is_available(self) -> bool:
         """Check if reranker is available"""

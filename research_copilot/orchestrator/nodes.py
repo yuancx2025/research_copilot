@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 MAX_CLARIFICATION_CONTEXT = 2000
 
 
+# Nodes use the model's configured temperature (LLM_TEMPERATURE). The former
+# llm.with_config(temperature=...) calls set a runnable-config key the model never reads.
 def analyze_chat_and_summarize(state: State, llm):
     """Fold the previous turn into a running summary.
 
@@ -38,7 +40,7 @@ def analyze_chat_and_summarize(state: State, llm):
     summary_prompt = get_conversation_summary_prompt(relevant_msgs, prior)
     try:
         # Gemini requires at least one non-system message, use HumanMessage instead of SystemMessage
-        summary_response = llm.with_config(temperature=0.2).invoke([HumanMessage(content=summary_prompt)])
+        summary_response = llm.invoke([HumanMessage(content=summary_prompt)])
         summary_text = extract_content_as_string(summary_response).strip()
     except Exception as e:
         logger.warning(f"Conversation summary failed: {e}. Keeping the previous summary.")
@@ -69,7 +71,7 @@ def analyze_and_rewrite_query(state: State, llm):
     prompt = get_query_analysis_prompt(last_message.content, _analysis_context(state))
 
     try:
-        llm_with_structure = llm.with_config(temperature=0.1).with_structured_output(QueryAnalysis)
+        llm_with_structure = llm.with_structured_output(QueryAnalysis)
         # Gemini requires at least one non-system message, use HumanMessage instead of SystemMessage
         response = llm_with_structure.invoke([HumanMessage(content=prompt)])
         
@@ -145,7 +147,8 @@ def classify_research_intent(state: State, llm) -> Dict[str, Any]:
             "research_intent": default,
             "routing_decision": {
                 "reasoning": "No query found, defaulting to available local/web agents",
-                "confidence": 0.5
+                "confidence": 0.5,
+                "fallback": "no_query",
             },
             "active_agents": default
         }
@@ -153,22 +156,25 @@ def classify_research_intent(state: State, llm) -> Dict[str, Any]:
     conversation_summary = state.get("conversation_summary", "")
     prompt = get_intent_classification_prompt(query, conversation_summary, sources)
 
-    def _result(agents, reasoning, confidence=0.7, suggested=None):
+    def _result(agents, reasoning, confidence=0.7, suggested=None, fallback=None):
         selected = ensure_notion(query, [a for a in agents if a in sources], sources)
         if not selected:
             selected = keyword_agents(query, sources)
+            fallback = fallback or "empty_selection"
         return {
             "research_intent": selected,
             "routing_decision": {
                 "reasoning": reasoning,
                 "confidence": confidence,
+                # Why keyword routing replaced the LLM's choice; None when the LLM decided.
+                "fallback": fallback,
                 **({"suggested_queries": suggested} if suggested else {}),
             },
             "active_agents": selected,
         }
 
     try:
-        llm_with_structure = llm.with_config(temperature=0.1).with_structured_output(ResearchIntent)
+        llm_with_structure = llm.with_structured_output(ResearchIntent)
         # Gemini requires at least one non-system message, use HumanMessage instead of SystemMessage
         intent = llm_with_structure.invoke([HumanMessage(content=prompt)])
 
@@ -177,16 +183,20 @@ def classify_research_intent(state: State, llm) -> Dict[str, Any]:
             return _result(
                 selected,
                 f"Structured output returned None. Analyzed query keywords to select agents: {', '.join(selected)}",
+                fallback="llm_returned_none",
             )
 
         filtered = [a for a in (intent.agents if hasattr(intent, 'agents') and intent.agents else []) if a in sources]
+        fallback = None
         if not filtered:
             filtered = keyword_agents(query, sources)
+            fallback = "no_valid_agents"
         return _result(
             filtered,
             (intent.reasoning if hasattr(intent, 'reasoning') else "Selected agents based on query analysis"),
             (intent.confidence if hasattr(intent, 'confidence') else 0.7),
             (intent.suggested_queries if hasattr(intent, 'suggested_queries') and intent.suggested_queries else None),
+            fallback=fallback,
         )
     except Exception as e:
         logger.warning(f"Error in intent classification: {e}")
@@ -195,6 +205,7 @@ def classify_research_intent(state: State, llm) -> Dict[str, Any]:
             selected,
             f"Intent classification failed: {str(e)}. Analyzed query keywords to select agents: {', '.join(selected)}",
             0.6,
+            fallback="llm_error",
         )
 
 

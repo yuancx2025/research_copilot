@@ -50,3 +50,8 @@ frontend/coverage/
 *.md
 !README.md
 !deployment/**/*.md
+
+# Evaluation: response cache and run reports (force-add a report you want to keep as a baseline)
+evals/.cache/
+evals/results/
+!evals/README.md

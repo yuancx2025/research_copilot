@@ -35,7 +35,8 @@ except ImportError:
     DENSE_MODEL = os.getenv("DENSE_MODEL", "sentence-transformers/all-mpnet-base-v2")
     SPARSE_MODEL = os.getenv("SPARSE_MODEL", "Qdrant/bm25")
     LLM_PROVIDER = os.getenv("LLM_PROVIDER", "google")
-    LLM_MODEL = os.getenv("LLM_MODEL", "gemini-3.0-flash")
+    from .defaults import DEFAULT_LLM_MODEL
+    LLM_MODEL = os.getenv("LLM_MODEL", DEFAULT_LLM_MODEL)
     LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0"))
     
     # --- Text Splitter Configuration ---
@@ -54,7 +55,15 @@ except ImportError:
     RERANK_TOP_K = int(os.getenv("RERANK_TOP_K", "5"))
     RERANK_INITIAL_K = int(os.getenv("RERANK_INITIAL_K", "20"))
     RERANK_BATCH_SIZE = int(os.getenv("RERANK_BATCH_SIZE", "5"))
-    
+    RERANK_PREVIEW_CHARS = int(os.getenv("RERANK_PREVIEW_CHARS", "1500"))
+
+    # --- Retrieval Configuration (see gcp_settings.py for rationale) ---
+    _min_dense = os.getenv("RETRIEVAL_MIN_DENSE_SCORE", "0.4").strip().lower()
+    RETRIEVAL_MIN_DENSE_SCORE = None if _min_dense in ("", "none", "off") else float(_min_dense)
+    RETRIEVAL_FETCH_MULTIPLIER = int(os.getenv("RETRIEVAL_FETCH_MULTIPLIER", "8"))
+    RETRIEVAL_HYBRID_FUSION = os.getenv("RETRIEVAL_HYBRID_FUSION", "dbsf").strip().lower()
+    RETRIEVAL_COLLAPSE_PARENTS = os.getenv("RETRIEVAL_COLLAPSE_PARENTS", "true").lower() == "true"
+
     # --- Research Cache Configuration ---
     ENABLE_RESEARCH_CACHE = os.getenv("ENABLE_RESEARCH_CACHE", "true").lower() == "true"
     

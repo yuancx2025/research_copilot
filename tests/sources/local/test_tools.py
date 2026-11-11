@@ -2,6 +2,7 @@
 Tests for tools/local_tools.py - Local document search tools
 """
 import pytest
+from langchain_core.tools import ToolException
 from unittest.mock import Mock, MagicMock, patch
 from research_copilot.sources.local.tools import LocalToolkit
 from research_copilot.runtime.base_toolkit import SourceType
@@ -29,10 +30,8 @@ class TestLocalToolkit:
         config = Mock()
         toolkit = LocalToolkit(config)
         
-        results = toolkit._search_child_chunks("test query")
-        
-        assert len(results) == 1
-        assert "error" in results[0]
+        with pytest.raises(ToolException, match="No document collection"):
+            toolkit._search_child_chunks("test query")
     
     def test_search_with_collection(self):
         """Test search with a mock collection"""
@@ -102,10 +101,8 @@ class TestLocalToolkit:
         
         toolkit.set_collection(mock_collection)
         
-        results = toolkit._search_child_chunks("test")
-        
-        assert len(results) == 1
-        assert "error" in results[0]
+        with pytest.raises(ToolException, match="Search failed"):
+            toolkit._search_child_chunks("test")
     
     def test_retrieve_error_handling(self):
         """Test error handling in retrieval"""
@@ -114,8 +111,32 @@ class TestLocalToolkit:
         
         toolkit.parent_store_manager.load_many = Mock(side_effect=Exception("Load failed"))
         
-        results = toolkit._retrieve_parent_chunks(["parent_1"])
-        
-        assert len(results) == 1
-        assert "error" in results[0]
+        with pytest.raises(ToolException, match="Retrieval failed"):
+            toolkit._retrieve_parent_chunks(["parent_1"])
 
+
+
+def test_tool_failure_reaches_agent_as_error_message_and_is_traced():
+    """M7: the agent's ToolNode must see an error result, not a list it reads as 'no documents'."""
+    from langchain_core.messages import AIMessage
+    from langgraph.prebuilt import ToolNode
+    from research_copilot.evals.tracing import RunTracer
+
+    toolkit = LocalToolkit(Mock())
+    broken = MagicMock()
+    broken.similarity_search.side_effect = RuntimeError("qdrant unavailable")
+    toolkit.set_collection(broken)
+    search = toolkit.create_tools()[0]
+    from langgraph.graph import END, START, MessagesState, StateGraph
+    builder = StateGraph(MessagesState)
+    builder.add_node("tools", ToolNode([search], handle_tool_errors=lambda exc: "Tool failed. Check connection or permissions."))
+    builder.add_edge(START, "tools")
+    builder.add_edge("tools", END)
+    tracer = RunTracer()
+    call = {"id": "c1", "name": search.name, "args": {"query": "q"}}
+    out = builder.compile().invoke({"messages": [AIMessage(content="", tool_calls=[call])]},
+                                   config={"callbacks": [tracer]})
+    out = {"messages": out["messages"][1:]}
+    [message] = out["messages"]
+    assert message.status == "error"
+    assert tracer.summary()["tools"]["errors"] == 1

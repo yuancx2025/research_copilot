@@ -1,10 +1,14 @@
+import logging
 from typing import List, Dict, Optional
-from langchain_core.tools import tool, BaseTool
+from langchain_core.tools import tool, BaseTool, ToolException
 from research_copilot.runtime.base_toolkit import BaseToolkit
 from research_copilot.runtime.schemas import SourceType
 from research_copilot.storage.parent_store import ParentStoreManager
 from research_copilot.rag.retriever import Retriever
 from research_copilot.config import settings as config
+
+logger = logging.getLogger(__name__)
+
 
 class LocalToolkit(BaseToolkit):
     """Tools for searching locally indexed documents."""
@@ -42,22 +46,25 @@ class LocalToolkit(BaseToolkit):
         Returns:
             List of relevant document chunks with metadata
         """
+        # Failures raise ToolException so the agent's ToolNode records an error result (and the
+        # tracer counts it) instead of a normal-looking result the agent reads as "nothing found".
         if not self.collection:
-            return [{"error": "No document collection loaded"}]
-        
+            raise ToolException("No document collection loaded")
+
         try:
             # Use retriever with reranking if available
             if self.retriever:
+                # No raw score threshold: hybrid scores are rank-based, so the retriever
+                # gates on dense similarity instead (RETRIEVAL_MIN_DENSE_SCORE).
                 results = self.retriever.search(
-                    query, 
-                    k=k, 
-                    score_threshold=0.7,
+                    query,
+                    k=k,
                     use_reranking=getattr(config, 'ENABLE_RERANKING', True)
                 )
                 return results
             else:
                 # Fallback to direct collection search
-                results = self.collection.similarity_search(query, k=k, score_threshold=0.7)
+                results = self.collection.similarity_search(query, k=k)
                 return [
                     {
                         "content": doc.page_content,
@@ -68,7 +75,8 @@ class LocalToolkit(BaseToolkit):
                     for doc in results
                 ]
         except Exception as e:
-            return [{"error": f"Search failed: {str(e)}"}]
+            logger.exception("Local document search failed")
+            raise ToolException(f"Search failed: {e}") from e
     
     def _retrieve_parent_chunks(self, parent_ids: List[str]) -> List[Dict]:
         """
@@ -87,7 +95,8 @@ class LocalToolkit(BaseToolkit):
                 for chunk in chunks
             ]
         except Exception as e:
-            return [{"error": f"Retrieval failed: {str(e)}"}]
+            logger.exception("Parent context retrieval failed")
+            raise ToolException(f"Retrieval failed: {e}") from e
     
     def create_tools(self) -> List[BaseTool]:
         """Create local document search tools."""
