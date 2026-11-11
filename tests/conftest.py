@@ -3,7 +3,6 @@ Pytest configuration and fixtures
 """
 import asyncio
 import os
-import uuid
 import pytest
 import pytest_asyncio
 import sys
@@ -45,8 +44,12 @@ def pg_schema():
                     "(see README), or deselect these tests with -m 'not postgres'.", pytrace=False)
     import psycopg
     from research_copilot.db.migrate import upgrade
-    schema = "test_" + uuid.uuid4().hex[:12]
+    from tests.pg_schemas import drop_stale_schemas, new_schema_name
+    schema = new_schema_name()
     with psycopg.connect(url, autocommit=True) as conn:
+        dropped = drop_stale_schemas(conn)
+        if dropped:
+            print(f"Dropped stale test schemas left by interrupted runs: {', '.join(dropped)}")
         conn.execute(f'CREATE SCHEMA "{schema}"')
     try:
         upgrade(url, schema)
