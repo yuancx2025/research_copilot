@@ -38,6 +38,30 @@ research-copilot-admin eval routing --router llm --rpm 8 --max-api-calls 200
 - `--max-api-calls` stops the run before the daily quota is spent. The run exits with code 2 and the report is marked incomplete. Rerun after the quota resets and the cached cases replay instantly.
 - Each report is written to `evals/results/routing-<router>[-label]-<timestamp>.json`. It records metrics, per-case predictions, the git commit, the dataset hash, and LLM calls, tokens, and p50/p95 latency.
 
+## Retrieval (BEIR SciFact, no API calls)
+
+This suite runs the app's own retrieval stack: the `Chunker` (parent-child, child 500/100 by default), a Qdrant collection built like `VectorDbManager.create_collection` (mpnet dense vectors plus BM25 sparse vectors), and `Retriever.retrieve`, the same call the local agent's search tool makes when reranking is off.
+
+```bash
+# One-time download (2.8 MB) into its own folder
+mkdir -p evals/.cache/beir/scifact-download
+curl -sSL -o evals/.cache/beir/scifact-download/scifact.zip \
+  https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/scifact.zip
+(cd evals/.cache/beir/scifact-download && unzip -q scifact.zip)
+
+research-copilot-admin eval retrieval --verbose                          # production chunking
+research-copilot-admin eval retrieval --chunk-size 1000 --chunk-overlap 200  # chunking ablation
+```
+
+- **Index:** built once per chunk setting and reused while the dataset fingerprint, chunking, and models match. Indexes live in `evals/.cache/qdrant`.
+- **Metrics:** computed per unique BEIR document; each chunk carries its document id as `corpus_id`.
+  - hit@k, recall@k, MRR, and nDCG@k count each relevant document once.
+  - precision@k counts chunks, because two relevant chunks really do use two slots of the agent's context.
+- **Configurations:** dense, BM25 (`sparse`), hybrid, plus two settings tested against the defaults:
+  - `fetch_k` is how many candidates each search leg returns before truncating to k.
+  - The production threshold (`score_threshold=0.7`) is tested on and off.
+- **Score separation:** uses the routing queries that aren't about research papers as off-topic probes. It reports whether a top-1 score threshold can separate answerable questions from off-topic ones (AUROC), and sweeps dense thresholds to show the trade-off between keeping hits and returning nothing for off-topic questions.
+
 ## Tracing real runs
 
 Set `RUN_TRACE_DIR=~/research-traces` before starting the server. Each research run then appends one line to `runs.jsonl` containing:

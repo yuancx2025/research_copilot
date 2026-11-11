@@ -72,7 +72,27 @@ def build_parser():
     routing.add_argument('--verbose', action='store_true', help='Print each case as it runs')
     routing.set_defaults(func=_eval_routing)
 
+    retrieval = evals.add_parser('retrieval', help='Score local retrieval on a BEIR-format dataset (no API calls)')
+    retrieval.add_argument('--data-dir', default='evals/.cache/beir/scifact-download/scifact',
+                           help='Folder with corpus.jsonl, queries.jsonl and qrels/<split>.tsv')
+    retrieval.add_argument('--split', default='test')
+    retrieval.add_argument('--index-dir', default='evals/.cache/qdrant', help='Local Qdrant folder for eval indexes')
+    retrieval.add_argument('--chunk-size', type=int, default=500, help='Child chunk size (production: 500)')
+    retrieval.add_argument('--chunk-overlap', type=int, default=100, help='Child chunk overlap (production: 100)')
+    retrieval.add_argument('--configs', help='Comma-separated config names (default: all)')
+    retrieval.add_argument('--off-topic', default='evals/datasets/routing.jsonl',
+                           help='JSONL whose non-paper queries probe off-topic score separation; "" to skip')
+    retrieval.add_argument('--limit', type=int, help='Only evaluate the first N queries')
+    retrieval.add_argument('--out', default='evals/results')
+    retrieval.add_argument('--label')
+    retrieval.add_argument('--verbose', action='store_true')
+    retrieval.set_defaults(func=_eval_retrieval)
     return parser
+
+
+def _eval_retrieval(args):
+    from research_copilot.evals.retrieval import run_cli
+    return run_cli(args)
 
 
 def _eval_routing(args):
