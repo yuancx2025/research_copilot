@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 MAX_CLARIFICATION_CONTEXT = 2000
 
 
+# Nodes use the model's configured temperature (LLM_TEMPERATURE). The former
+# llm.with_config(temperature=...) calls set a runnable-config key the model never reads.
 def analyze_chat_and_summarize(state: State, llm):
     """Fold the previous turn into a running summary.
 
@@ -38,7 +40,7 @@ def analyze_chat_and_summarize(state: State, llm):
     summary_prompt = get_conversation_summary_prompt(relevant_msgs, prior)
     try:
         # Gemini requires at least one non-system message, use HumanMessage instead of SystemMessage
-        summary_response = llm.with_config(temperature=0.2).invoke([HumanMessage(content=summary_prompt)])
+        summary_response = llm.invoke([HumanMessage(content=summary_prompt)])
         summary_text = extract_content_as_string(summary_response).strip()
     except Exception as e:
         logger.warning(f"Conversation summary failed: {e}. Keeping the previous summary.")
@@ -69,7 +71,7 @@ def analyze_and_rewrite_query(state: State, llm):
     prompt = get_query_analysis_prompt(last_message.content, _analysis_context(state))
 
     try:
-        llm_with_structure = llm.with_config(temperature=0.1).with_structured_output(QueryAnalysis)
+        llm_with_structure = llm.with_structured_output(QueryAnalysis)
         # Gemini requires at least one non-system message, use HumanMessage instead of SystemMessage
         response = llm_with_structure.invoke([HumanMessage(content=prompt)])
         
@@ -172,7 +174,7 @@ def classify_research_intent(state: State, llm) -> Dict[str, Any]:
         }
 
     try:
-        llm_with_structure = llm.with_config(temperature=0.1).with_structured_output(ResearchIntent)
+        llm_with_structure = llm.with_structured_output(ResearchIntent)
         # Gemini requires at least one non-system message, use HumanMessage instead of SystemMessage
         intent = llm_with_structure.invoke([HumanMessage(content=prompt)])
 
