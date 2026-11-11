@@ -1,8 +1,24 @@
 import os
+import re
 import glob
+import hashlib
 from research_copilot.config import settings as config
 from pathlib import Path
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
+
+
+def parent_id_prefix(source_id: str) -> str:
+    """Unique, filename-safe prefix for a source's parent chunks.
+
+    ``Path(source_id).stem`` collided badly: arXiv "2401.12345" and "2401.67890"
+    both became "2401", and every ".../index.html" page became "index", so
+    their parent files overwrote each other. A readable slug plus a short hash
+    of the full id keeps ids unique and stable.
+    """
+    tail = source_id.rstrip("/").rsplit("/", 1)[-1] or "source"
+    slug = re.sub(r"[^A-Za-z0-9_-]+", "-", tail).strip("-")[:40] or "source"
+    digest = hashlib.sha1(source_id.encode("utf-8")).hexdigest()[:10]
+    return f"{slug}-{digest}"
 
 class Chunker:
     """Parent-child chunking strategy for documents."""
@@ -65,11 +81,11 @@ class Chunker:
         
         all_parent_chunks, all_child_chunks = [], []
         
-        # Create a dummy path for metadata purposes
-        dummy_path = Path(source_metadata.get("source_id", "unknown") if source_metadata else "unknown")
-        
+        source_id = str(source_metadata.get("source_id", "unknown")) if source_metadata else "unknown"
+        prefix = parent_id_prefix(source_id)
+
         for i, p_chunk in enumerate(cleaned_parents):
-            parent_id = f"{dummy_path.stem}_parent_{i}"
+            parent_id = f"{prefix}_parent_{i}"
             p_chunk.metadata.update({
                 "source": source_metadata.get("source_id", "unknown") if source_metadata else "unknown",
                 "parent_id": parent_id
