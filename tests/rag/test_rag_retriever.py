@@ -149,9 +149,8 @@ class TestRetriever:
         mock_collection.similarity_search.side_effect = Exception("Search failed")
         retriever = Retriever(mock_collection, mock_parent_store)
         
-        results = retriever.retrieve("test query")
-        
-        assert results == []
+        with pytest.raises(Exception, match="Search failed"):
+            retriever.retrieve("test query")
     
     def test_retrieve_parameters(self, mock_collection, mock_parent_store):
         """Test retrieval with custom parameters"""

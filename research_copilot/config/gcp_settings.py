@@ -116,6 +116,22 @@ RERANK_TOP_K = int(os.getenv("RERANK_TOP_K", "5"))
 RERANK_INITIAL_K = int(os.getenv("RERANK_INITIAL_K", "20"))
 RERANK_BATCH_SIZE = int(os.getenv("RERANK_BATCH_SIZE", "5"))
 
+# --- Retrieval Configuration ---
+# Local search returns nothing unless the best match's dense (cosine) similarity reaches this.
+# Hybrid scores are rank-based and cannot gate relevance; dense cosine separated answerable from
+# off-topic queries with AUROC 0.995 on BEIR SciFact (all-mpnet-base-v2). "none" disables.
+_min_dense = os.getenv("RETRIEVAL_MIN_DENSE_SCORE", "0.4").strip().lower()
+RETRIEVAL_MIN_DENSE_SCORE = None if _min_dense in ("", "none", "off") else float(_min_dense)
+# Chunk candidates per search leg = k * multiplier. Qdrant hybrid search fuses only this many
+# from each of BM25 and dense, so fetching k (the old behaviour) starved the fusion.
+RETRIEVAL_FETCH_MULTIPLIER = int(os.getenv("RETRIEVAL_FETCH_MULTIPLIER", "8"))
+# Hybrid fusion: "dbsf" (distribution-based score fusion) or "rrf" (reciprocal rank fusion).
+# On BEIR SciFact, DBSF with 8x candidates raised nDCG@5 by ~2 points on both the test split and
+# the held-out train split (809 queries) at no latency cost; hit rate was unchanged on train.
+RETRIEVAL_HYBRID_FUSION = os.getenv("RETRIEVAL_HYBRID_FUSION", "dbsf").strip().lower()
+# Return k distinct parents (best chunk each) instead of k chunks that may share a parent.
+RETRIEVAL_COLLAPSE_PARENTS = os.getenv("RETRIEVAL_COLLAPSE_PARENTS", "true").lower() == "true"
+
 # --- Research Cache Configuration ---
 ENABLE_RESEARCH_CACHE = os.getenv("ENABLE_RESEARCH_CACHE", "true").lower() == "true"
 

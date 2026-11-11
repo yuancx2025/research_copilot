@@ -3,8 +3,48 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_qdrant import QdrantVectorStore, FastEmbedSparse, RetrievalMode
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels
+import logging
 import os
 import time
+
+logger = logging.getLogger(__name__)
+
+
+def create_or_upgrade_collection(client: QdrantClient, collection_name: str, *, dense_size: int,
+                                 sparse_vector_name: str) -> bool:
+    """Create the hybrid collection, or bring an existing one up to date. Returns True if created.
+
+    The BM25 sparse vectors from FastEmbed ("Qdrant/bm25") hold term frequencies only; Qdrant
+    applies the IDF half of BM25 at query time, and only when the sparse vector is configured
+    with ``modifier=IDF``. Collections created without it scored every term alike, so rare,
+    informative terms counted no more than common ones. The modifier can be added in place:
+    stored vectors stay valid and nothing needs re-embedding.
+    """
+    if not client.collection_exists(collection_name):
+        client.create_collection(
+            collection_name=collection_name,
+            vectors_config=qmodels.VectorParams(size=dense_size, distance=qmodels.Distance.COSINE),
+            sparse_vectors_config={
+                sparse_vector_name: qmodels.SparseVectorParams(modifier=qmodels.Modifier.IDF)},
+        )
+        return True
+    ensure_sparse_idf(client, collection_name, sparse_vector_name)
+    return False
+
+
+def ensure_sparse_idf(client: QdrantClient, collection_name: str, sparse_vector_name: str) -> bool:
+    """Add the IDF modifier to an existing collection's sparse vector. Returns True if it changed."""
+    sparse = client.get_collection(collection_name).config.params.sparse_vectors or {}
+    params = sparse.get(sparse_vector_name)
+    if params is None or params.modifier == qmodels.Modifier.IDF:
+        return False
+    client.update_collection(
+        collection_name,
+        sparse_vectors_config={sparse_vector_name: qmodels.SparseVectorParams(modifier=qmodels.Modifier.IDF)},
+    )
+    logger.info("Enabled BM25 IDF weighting on existing collection %s", collection_name)
+    return True
+
 
 class VectorDbManager:
     __client: QdrantClient
@@ -54,16 +94,12 @@ class VectorDbManager:
         return None
 
     def create_collection(self, collection_name):
-        if not self.__client.collection_exists(collection_name):
-            print(f"Creating collection: {collection_name}...")
-            self.__client.create_collection(
-                collection_name=collection_name,
-                vectors_config=qmodels.VectorParams(size=len(self.__dense_embeddings.embed_query("test")), distance=qmodels.Distance.COSINE),
-                sparse_vectors_config={config.SPARSE_VECTOR_NAME: qmodels.SparseVectorParams()},
-            )
-            print(f"✓ Collection created: {collection_name}")
-        else:
-            print(f"✓ Collection already exists: {collection_name}")
+        created = create_or_upgrade_collection(
+            self.__client, collection_name,
+            dense_size=len(self.__dense_embeddings.embed_query("test")),
+            sparse_vector_name=config.SPARSE_VECTOR_NAME,
+        )
+        print(f"✓ Collection {'created' if created else 'already exists'}: {collection_name}")
 
     def delete_collection(self, collection_name):
         try:
