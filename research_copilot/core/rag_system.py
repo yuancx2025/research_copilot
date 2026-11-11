@@ -2,6 +2,7 @@ import atexit
 import os
 from langchain_core.language_models import BaseChatModel
 from research_copilot.config import settings as config
+from research_copilot.config.defaults import DEFAULT_LLM_MODEL, DEFAULT_OLLAMA_MODEL
 from research_copilot.storage.qdrant_client import VectorDbManager
 from research_copilot.storage.parent_store import ParentStoreManager
 from research_copilot.storage.research_cache import ResearchCache
@@ -57,7 +58,7 @@ def create_llm(rate_limiter=None) -> BaseChatModel:
                 "or in config.py. Get your key from: https://makersuite.google.com/app/apikey"
             )
         
-        model_name = getattr(config, 'LLM_MODEL', 'gemini-pro')
+        model_name = getattr(config, 'LLM_MODEL', None) or DEFAULT_LLM_MODEL
         temperature = getattr(config, 'LLM_TEMPERATURE', 0)
         
         print(f"✓ Using Google Gemini API: {model_name}")
@@ -69,7 +70,7 @@ def create_llm(rate_limiter=None) -> BaseChatModel:
         )
     else:
         from langchain_ollama import ChatOllama
-        model_name = getattr(config, 'LLM_MODEL', 'qwen3:4b-instruct-2507-q4_K_M')
+        model_name = getattr(config, 'LLM_MODEL', None) or DEFAULT_OLLAMA_MODEL
         temperature = getattr(config, 'LLM_TEMPERATURE', 0)
         print(f"✓ Using Ollama: {model_name}")
         return ChatOllama(model=model_name, temperature=temperature, rate_limiter=rate_limiter)

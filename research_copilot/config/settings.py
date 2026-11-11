@@ -35,7 +35,8 @@ except ImportError:
     DENSE_MODEL = os.getenv("DENSE_MODEL", "sentence-transformers/all-mpnet-base-v2")
     SPARSE_MODEL = os.getenv("SPARSE_MODEL", "Qdrant/bm25")
     LLM_PROVIDER = os.getenv("LLM_PROVIDER", "google")
-    LLM_MODEL = os.getenv("LLM_MODEL", "gemini-3.0-flash")
+    from .defaults import DEFAULT_LLM_MODEL
+    LLM_MODEL = os.getenv("LLM_MODEL", DEFAULT_LLM_MODEL)
     LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0"))
     
     # --- Text Splitter Configuration ---
