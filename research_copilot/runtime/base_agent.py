@@ -87,6 +87,10 @@ class BaseAgent(ABC):
         """
         pass
     
+    def select_citations(self, answer: str, citations: List[BaseCitation]) -> List[BaseCitation]:
+        """Choose which extracted citations back the final answer. Default: all of them."""
+        return citations
+
     def create_agent_subgraph(self) -> CompiledGraph:
         """
         Create a compiled agent subgraph with tools.
@@ -285,6 +289,8 @@ class BaseAgent(ABC):
                                     "Skipping this citation."
                             )
         
+        citations = self.select_citations(final_answer or "", citations)
+
         # Convert Pydantic models to dicts for backward compatibility
         citations_dict = [citation.to_dict() for citation in citations]
         
